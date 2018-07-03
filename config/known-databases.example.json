@@ -1,0 +1,21 @@
+{
+  "knownDatabases":
+  [
+    {
+      "application": "Sample DB",
+      "connectionDetails": {
+        "driver": "oracle.jdbc.OracleDriver",
+        "url": "jdbc:oracle:thin:@[host]:[port]:[sid]",
+        "username": "",
+        "password": "",
+        "imports": [
+          { "table": "EXAMPLE_TABLE_1" },
+          { "table": "EXAMPLE_TABLE_2", "query": "SELECT * FROM EXAMPLE_TABLE_2 WHERE year >= 2014" }
+        ],
+        "postScripts": [
+          { "label": "Create Index", "sql": "CREATE INDEX et1_idx_1 ON EXAMPLE_TABLE_1 (id)" }
+        ]
+      }
+    }
+  ]
+}
