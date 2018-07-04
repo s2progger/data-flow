@@ -5,7 +5,7 @@ plugins {
     kotlin("jvm") version "1.2.51"
 }
 
-group = "com.simontwogood"
+group = "org.s2progger"
 version = "0.1"
 
 repositories {
@@ -15,6 +15,7 @@ repositories {
 dependencies {
     compile(kotlin("stdlib"))
 
+    compile("com.github.ajalt:clikt:1.3.0")
     compile("io.github.microutils:kotlin-logging:1.5.4")
     compile("org.slf4j:slf4j-simple:1.7.25")
     compile("com.github.salomonbrys.kotson:kotson:2.5.0")

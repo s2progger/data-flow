@@ -1,10 +1,10 @@
-package com.inferwerx.dbextraction
+package org.s2progger.dataflow
 
-import com.inferwerx.dbextraction.config.DatabaseConnectionDetail
-import com.inferwerx.dbextraction.config.DatabaseImport
-import com.inferwerx.dbextraction.config.ExportDbConfiguration
-import com.inferwerx.dbextraction.config.PostRunScript
 import mu.KLogging
+import org.s2progger.dataflow.config.DatabaseConnectionDetail
+import org.s2progger.dataflow.config.DatabaseImport
+import org.s2progger.dataflow.config.ExportDbConfiguration
+import org.s2progger.dataflow.config.PostRunScript
 import java.io.File
 import java.sql.*
 import java.text.NumberFormat

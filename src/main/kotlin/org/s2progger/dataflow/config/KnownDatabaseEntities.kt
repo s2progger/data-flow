@@ -1,4 +1,4 @@
-package com.inferwerx.dbextraction.config
+package org.s2progger.dataflow
 
 data class ImportConfig (
         val knownDatabases: List<KnownDatabase>

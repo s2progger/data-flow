@@ -1,4 +1,4 @@
-package com.inferwerx.dbextraction.config
+package org.s2progger.dataflow
 
 data class ExportDbConfiguration (
         val exportBatchSize: Int?,
