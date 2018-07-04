@@ -1,6 +1,7 @@
-package com.inferwerx.dbextraction
+package com.inferwerx.dbextraction.config
 
 data class ExportDbConfiguration (
+        val exportBatchSize: Int?,
         val driver: String,
         val outputFolder: String?,
         val urlProtocol: String,

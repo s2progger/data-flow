@@ -1,4 +1,4 @@
-package com.inferwerx.dbextraction
+package com.inferwerx.dbextraction.config
 
 data class ImportConfig (
         val knownDatabases: List<KnownDatabase>
@@ -23,6 +23,7 @@ data class DatabaseConnectionDetail (
 
 data class DatabaseImport (
         val table: String,
+        val fetchSize: Int?,
         val query: String?
 )
 

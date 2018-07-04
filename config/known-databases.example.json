@@ -9,7 +9,7 @@
         "username": "",
         "password": "",
         "imports": [
-          { "table": "EXAMPLE_TABLE_1" },
+          { "table": "EXAMPLE_TABLE_1", "fetchSize": 20000 },
           { "table": "EXAMPLE_TABLE_2", "query": "SELECT * FROM EXAMPLE_TABLE_2 WHERE year >= 2014" }
         ],
         "postScripts": [
