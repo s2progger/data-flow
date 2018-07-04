@@ -203,7 +203,8 @@ class DatabaseCopy(val exportConfig: ExportDbConfiguration) {
                     Types.TINYINT -> ps.setByte(i, rs.getByte(i))
                     Types.VARBINARY -> ps.setBytes(i, rs.getBytes(i))
                     Types.VARCHAR -> ps.setString(i, rs.getString(i))
-                    else -> ps.setString(i, rs.getString(i))
+                    Types.LONGVARBINARY -> ps.setBytes(i, rs.getBytes(i))
+                    else -> ps.setBlob(i, rs.getBlob(i))
                 }
             }
 
@@ -271,6 +272,7 @@ class DatabaseCopy(val exportConfig: ExportDbConfiguration) {
             Types.TINYINT   -> "TINYINT"
             Types.VARBINARY -> "VARBINARY"
             Types.VARCHAR   -> "VARCHAR"
+            Types.LONGVARBINARY -> "VARBINARY(MAX)" // This won't work in Oracle
             else            -> "BLOB"
         }
     }
