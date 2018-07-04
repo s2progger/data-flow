@@ -1,4 +1,4 @@
-package org.s2progger.dataflow
+package org.s2progger.dataflow.config
 
 data class ExportDbConfiguration (
         val exportBatchSize: Int?,
