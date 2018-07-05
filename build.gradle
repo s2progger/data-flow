@@ -3,26 +3,27 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.4'
+        classpath "com.github.jengelman.gradle.plugins:shadow:2.0.4"
     }
 }
 
 plugins {
-    id 'java'
-    id 'application'
-    id 'org.jetbrains.kotlin.jvm' version '1.2.51'
+    id "java"
+    id "application"
+    id "org.jetbrains.kotlin.jvm" version "1.2.51"
+    id "edu.sc.seis.launch4j" version "2.4.4"
 }
-
-mainClassName = 'org.s2progger.dataflow.MainKt'
-
-group = 'org.s2progger'
-version = '0.1'
-
-sourceCompatibility = 1.8
 
 repositories {
     jcenter()
 }
+
+mainClassName = "org.s2progger.dataflow.MainKt"
+
+group = "org.s2progger"
+version = "2.0"
+
+sourceCompatibility = 1.8
 
 dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib"
@@ -53,6 +54,47 @@ jar {
     }
 }
 
-// Do this last as the plugin seems to have a bug in it and needs to be initialized late
+task copyConfig(type: Copy, group: "build", description: "Copys the JSON config files to the build directory") {
+    from "config"
+    include "*.example.*"
+
+    into "${buildDir}/config"
+
+    rename { filename ->
+        filename.replace ".example", ""
+    }
+}
+
+build.finalizedBy copyConfig
+
+launch4j {
+    outputDir = "distribution"
+    mainClassName = project.mainClassName
+    headerType = "console"
+    bundledJrePath = "jre"
+    bundledJre64Bit = true
+}
+
+task copyJre(type: Copy, group: "launch4j", description: "Bundles the JRE with the final build") {
+    from "$System.env.JAVA_HOME/"
+    into "$buildDir/distribution/jre"
+}
+
+task distConfig(type: Copy, group: "launch4j", description: "Copies config files to the distribution folder") {
+    from "${buildDir}/config"
+    into "${buildDir}/distribution"
+}
+
+createExe.dependsOn build
+createExe.mustRunAfter build
+
+createExe.dependsOn copyJre
+createExe.dependsOn distConfig
+
+copyJre.shouldRunAfter createExe
+distConfig.shouldRunAfter createExe
+
+
+// Do this before assigning mainClassName as the plugin seems to have a bug in it and needs to be initialized late
 apply plugin: 'com.github.johnrengelman.shadow'
 
