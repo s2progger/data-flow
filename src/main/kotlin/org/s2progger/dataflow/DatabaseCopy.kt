@@ -135,12 +135,17 @@ class DatabaseCopy(val exportConfig: ExportDbConfiguration) {
 
             val nullable = if (meta.isNullable(i) == ResultSetMetaData.columnNoNulls) "NOT NULL" else ""
 
-            if (isSizable(type) && isNumeric(type))
+            if (isSizable(type) && isNumeric(type)) {
                 script.append("$name $type ($size,$precision) $nullable")
-            else if(isSizable(type))
-                script.append("$name $type ($size) $nullable")
-            else
+            } else if(isSizable(type)) {
+                // If this is a sizable type and the size is 0, the JDBC driver probably isn't implemented correctly
+                // so just the target column the max size (this will need to be reworked to be more DB agnostic
+                val colSize = if (size == 0) "MAX" else size.toString();
+
+                script.append("$name $type ($colSize) $nullable")
+            } else {
                 script.append("$name $type $nullable")
+            }
         }
 
         script.append(")")
@@ -204,6 +209,7 @@ class DatabaseCopy(val exportConfig: ExportDbConfiguration) {
                     Types.VARBINARY -> ps.setBytes(i, rs.getBytes(i))
                     Types.VARCHAR -> ps.setString(i, rs.getString(i))
                     Types.LONGVARBINARY -> ps.setBytes(i, rs.getBytes(i))
+                    Types.LONGVARCHAR -> ps.setString(i, rs.getString(i))
                     else -> ps.setBlob(i, rs.getBlob(i))
                 }
             }
@@ -272,7 +278,8 @@ class DatabaseCopy(val exportConfig: ExportDbConfiguration) {
             Types.TINYINT   -> "TINYINT"
             Types.VARBINARY -> "VARBINARY"
             Types.VARCHAR   -> "VARCHAR"
-            Types.LONGVARBINARY -> "VARBINARY(MAX)" // This won't work in Oracle
+            Types.LONGVARBINARY -> "VARBINARY(MAX)"
+            Types.LONGVARCHAR   -> "VARCHAR(MAX)"
             else            -> "BLOB"
         }
     }
