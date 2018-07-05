@@ -1,6 +1,6 @@
 package org.s2progger.dataflow
 
-import mu.KLogging
+import mu.KotlinLogging
 import org.s2progger.dataflow.config.DatabaseConnectionDetail
 import org.s2progger.dataflow.config.DatabaseImport
 import org.s2progger.dataflow.config.ExportDbConfiguration
@@ -10,7 +10,7 @@ import java.sql.*
 import java.text.NumberFormat
 
 class DatabaseCopy(val exportConfig: ExportDbConfiguration) {
-    companion object: KLogging()
+    private val logger = KotlinLogging.logger {}
 
     init {
         if (exportConfig.outputFolder != null) {
@@ -62,11 +62,11 @@ class DatabaseCopy(val exportConfig: ExportDbConfiguration) {
         val importStatement = importDbConnection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
         val exportStatement = exportDbConnection.createStatement()
 
-        System.out.println("Database product: ${importMeta.databaseProductName}")
-        System.out.println("Database version: ${importMeta.databaseProductVersion}")
+        logger.info("Database product: ${importMeta.databaseProductName}")
+        logger.info("Database version: ${importMeta.databaseProductVersion}")
 
         for (import in importList) {
-            System.out.println("Importing ${import.table}...")
+            logger.info("Importing ${import.table}...")
 
             prepareImportTable(import.table, importStatement, exportStatement)
 
@@ -83,11 +83,11 @@ class DatabaseCopy(val exportConfig: ExportDbConfiguration) {
         val statement = connection.createStatement()
 
         for (script in scripts) {
-            System.out.println("Running script: ${script.label}...")
+            logger.info("Running script: ${script.label}...")
 
             statement.executeUpdate(script.sql)
 
-            System.out.println("${script.label} complete")
+            logger.info("${script.label} complete")
         }
 
         statement.close()
@@ -220,8 +220,7 @@ class DatabaseCopy(val exportConfig: ExportDbConfiguration) {
                 ps.executeBatch()
                 exportConnection.commit()
 
-                System.out.print("\rExported ${NumberFormat.getInstance().format(rowCount)} records so far...")
-                System.out.flush()
+                logger.info("Exported ${NumberFormat.getInstance().format(rowCount)} records so far...")
             }
         }
 
@@ -231,7 +230,7 @@ class DatabaseCopy(val exportConfig: ExportDbConfiguration) {
         ps.close()
         rs.close()
 
-        System.out.println("Processed ${NumberFormat.getInstance().format(rowCount)} record(s) from ${import.table}")
+        logger.info("Processed ${NumberFormat.getInstance().format(rowCount)} record(s) from ${import.table}")
     }
 
     private fun setupParameterList(columns: Int) : String {

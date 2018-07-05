@@ -30,11 +30,11 @@ dependencies {
 
     compile "com.github.ajalt:clikt:1.3.0"
     compile"io.github.microutils:kotlin-logging:1.5.4"
-    compile"org.slf4j:slf4j-simple:1.7.25"
+    compile"ch.qos.logback:logback-classic:1.2.3"
     compile"com.github.salomonbrys.kotson:kotson:2.5.0"
     compile"com.h2database:h2:1.4.197"
     compile"com.microsoft.sqlserver:mssql-jdbc:6.4.0.jre8"
-    compile files("lib/ojdbc14.jar")
+    compile files("lib/ojdbc8.jar")
 
     testCompile group: 'junit', name: 'junit', version: '4.12'
 }
@@ -68,7 +68,7 @@ task copyConfig(type: Copy, group: "build", description: "Copys the JSON config 
 build.finalizedBy copyConfig
 
 launch4j {
-    outputDir = "distribution"
+    outputDir = "release"
     mainClassName = project.mainClassName
     headerType = "console"
     bundledJrePath = "jre"
@@ -77,12 +77,12 @@ launch4j {
 
 task copyJre(type: Copy, group: "launch4j", description: "Bundles the JRE with the final build") {
     from "$System.env.JAVA_HOME/"
-    into "$buildDir/distribution/jre"
+    into "$buildDir/release/jre"
 }
 
 task distConfig(type: Copy, group: "launch4j", description: "Copies config files to the distribution folder") {
     from "${buildDir}/config"
-    into "${buildDir}/distribution"
+    into "${buildDir}/release"
 }
 
 createExe.dependsOn build
