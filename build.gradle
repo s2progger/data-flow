@@ -1,11 +1,22 @@
-plugins {
-    id 'java'
-    id 'org.jetbrains.kotlin.jvm' version '1.2.51'
-    id 'com.github.johnrengelman.shadow' version '2.0.4'
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.4'
+    }
 }
 
-group 'org.s2progger'
-version '0.1'
+plugins {
+    id 'java'
+    id 'application'
+    id 'org.jetbrains.kotlin.jvm' version '1.2.51'
+}
+
+mainClassName = 'org.s2progger.dataflow.MainKt'
+
+group = 'org.s2progger'
+version = '0.1'
 
 sourceCompatibility = 1.8
 
@@ -33,3 +44,15 @@ compileKotlin {
 compileTestKotlin {
     kotlinOptions.jvmTarget = "1.8"
 }
+
+jar {
+    manifest {
+        attributes(
+                "Main-Class": mainClassName
+        )
+    }
+}
+
+// Do this last as the plugin seems to have a bug in it and needs to be initialized late
+apply plugin: 'com.github.johnrengelman.shadow'
+
