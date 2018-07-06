@@ -23,6 +23,9 @@ gradle-app.setting
 *.war
 *.ear
 
+# Allow jars in the libs folder to be put into git
+!libs/*.jar
+
 # Avoid ignoring Gradle wrapper jar file (.jar files are usually ignored)
 !gradle-wrapper.jar
 
