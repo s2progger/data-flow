@@ -9,7 +9,7 @@ import java.io.File
 import java.sql.*
 import java.text.NumberFormat
 
-class DatabaseCopy(val exportConfig: ExportDbConfiguration) {
+class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
     private val logger = KotlinLogging.logger {}
 
     init {
@@ -140,7 +140,7 @@ class DatabaseCopy(val exportConfig: ExportDbConfiguration) {
             } else if(isSizable(type)) {
                 // If this is a sizable type and the size is 0, the JDBC driver probably isn't implemented correctly
                 // so just the target column the max size (this will need to be reworked to be more DB agnostic
-                val colSize = if (size == 0) "MAX" else size.toString();
+                val colSize = if (size == 0) "MAX" else size.toString()
 
                 script.append("$name $type ($colSize) $nullable")
             } else {
@@ -158,13 +158,13 @@ class DatabaseCopy(val exportConfig: ExportDbConfiguration) {
 
     @Throws(Exception::class)
     private fun importTable(import: DatabaseImport, importStatement: Statement, exportConnection: Connection) {
-        val insertBatchSize = exportConfig.exportBatchSize ?: 10000;
+        val insertBatchSize = exportConfig.exportBatchSize ?: 10000
         val columnDetectSql = "SELECT * FROM ${import.table} WHERE 1 = 2"
         val selectSql = import.query ?: "SELECT * FROM ${import.table}"
 
         val metaRs = importStatement.executeQuery(columnDetectSql)
         val meta = metaRs.metaData
-        val columnTypes = Array(meta.columnCount, { -1 })
+        val columnTypes = Array(meta.columnCount) { -1 }
 
         for (i in 1..meta.columnCount) {
             columnTypes[i - 1] = meta.getColumnType(i)
