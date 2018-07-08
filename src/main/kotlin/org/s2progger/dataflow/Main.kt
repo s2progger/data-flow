@@ -21,28 +21,29 @@ class Main : CliktCommand(name = "data-flow", help = "Export database tables") {
     override fun run() {
         val gson = Gson()
 
-        val exportDbConfig = gson.fromJson<ExportDbConfiguration>(FileReader(settings))
-        val importConfig = gson.fromJson<ImportConfig>(FileReader(databases))
+        try {
+            val exportDbConfig = gson.fromJson<ExportDbConfiguration>(FileReader(settings))
+            val importConfig = gson.fromJson<ImportConfig>(FileReader(databases))
 
-        val dbCopyUtil = DatabaseCopy(exportDbConfig);
+            val dbCopyUtil = DatabaseCopy(exportDbConfig);
 
-        var selection = application
+            var selection = application
 
-        if (selection == null) {
-            println("Known databases")
-            println()
+            if (selection == null) {
+                println("Known databases")
+                println()
 
-            importConfig.knownDatabases.forEachIndexed { index, value ->
-                println("[$index] - ${value.application}")
+                importConfig.knownDatabases.forEachIndexed { index, value ->
+                    println("[$index] - ${value.application}")
+                }
+
+                println()
+                println("Enter a database # to copy: ")
+
+                selection = readLine()
             }
 
-            println()
-            println("Enter a database # to copy: ")
 
-            selection = readLine()
-        }
-
-        try {
             if (selection == null) {
                 throw Throwable("No database selection made")
             }
@@ -57,7 +58,7 @@ class Main : CliktCommand(name = "data-flow", help = "Export database tables") {
 
             logger.error("Application terminated")
         } catch (e: Throwable){
-            logger.error(e.message)
+            logger.error(e.toString())
         }
     }
 }
