@@ -28,14 +28,14 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
 
         val importConnectionConfig = HikariConfig()
 
-        importConnectionConfig.dataSourceClassName = details.driver
+        importConnectionConfig.driverClassName = details.driver
         importConnectionConfig.jdbcUrl = details.url
         importConnectionConfig.username = details.username
         importConnectionConfig.password = details.password
 
         val exportConnectionConfig = HikariConfig()
 
-        exportConnectionConfig.dataSourceClassName = exportConfig.driver
+        exportConnectionConfig.driverClassName = exportConfig.driver
         exportConnectionConfig.jdbcUrl = exportUrl
         exportConnectionConfig.username = exportConfig.username
         exportConnectionConfig.password = exportConfig.password
