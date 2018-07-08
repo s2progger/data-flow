@@ -18,13 +18,9 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
         if (exportConfig.outputFolder != null) {
             File(exportConfig.outputFolder).mkdirs()
         }
-
-        Class.forName(exportConfig.driver)
     }
 
     fun copyDatabase(dbName: String, details: DatabaseConnectionDetail) {
-        Class.forName(details.driver)
-
         val exportUrl = when (exportConfig.outputFolder.isNullOrEmpty()) {
             true -> "${exportConfig.urlProtocol}${exportConfig.urlOptions}"
             false -> "${exportConfig.urlProtocol}${exportConfig.outputFolder}${dbName.toLowerCase().replace(" ", "_")}-import${exportConfig.urlOptions}"
@@ -32,12 +28,14 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
 
         val importConnectionConfig = HikariConfig()
 
+        importConnectionConfig.dataSourceClassName = details.driver
         importConnectionConfig.jdbcUrl = details.url
         importConnectionConfig.username = details.username
         importConnectionConfig.password = details.password
 
         val exportConnectionConfig = HikariConfig()
 
+        exportConnectionConfig.dataSourceClassName = exportConfig.driver
         exportConnectionConfig.jdbcUrl = exportUrl
         exportConnectionConfig.username = exportConfig.username
         exportConnectionConfig.password = exportConfig.password
