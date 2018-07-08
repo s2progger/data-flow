@@ -1,5 +1,7 @@
 package org.s2progger.dataflow
 
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
 import mu.KotlinLogging
 import org.s2progger.dataflow.config.DatabaseConnectionDetail
 import org.s2progger.dataflow.config.DatabaseImport
@@ -28,209 +30,247 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
             false -> "${exportConfig.urlProtocol}${exportConfig.outputFolder}${dbName.toLowerCase().replace(" ", "_")}-import${exportConfig.urlOptions}"
         }
 
-        val importConnection = DriverManager.getConnection(details.url, details.username, details.password)
-        val exportConnection = DriverManager.getConnection(exportUrl, exportConfig.username, exportConfig.password)
+        val importConnectionConfig = HikariConfig()
 
+        importConnectionConfig.jdbcUrl = details.url
+        importConnectionConfig.username = details.username
+        importConnectionConfig.password = details.password
+
+        val exportConnectionConfig = HikariConfig()
+
+        exportConnectionConfig.jdbcUrl = exportUrl
+        exportConnectionConfig.username = exportConfig.username
+        exportConnectionConfig.password = exportConfig.password
+
+        val importDataSource = HikariDataSource(importConnectionConfig)
+        val exportDataSource = HikariDataSource(exportConnectionConfig)
 
         if (details.sqlSetupCommands != null) {
-            val stmt = importConnection.createStatement()
-
-            stmt.execute(details.sqlSetupCommands)
-            stmt.close()
+            importDataSource.connection.use { connection ->
+                connection.createStatement().use {statement ->
+                    statement.execute(details.sqlSetupCommands)
+                }
+            }
         }
 
         if (exportConfig.sqlSetupCommands != null) {
-            val stmt = exportConnection.createStatement()
-
-            stmt.execute(exportConfig.sqlSetupCommands)
-            stmt.close()
+            exportDataSource.connection.use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.execute(exportConfig.sqlSetupCommands)
+                }
+            }
         }
 
-        importApplication(importConnection, exportConnection, details.imports)
+        importApplication(importDataSource, exportDataSource, details.imports)
 
-        if (details.postScripts != null)
-            runPostScripts(exportConnection, details.postScripts)
+        if (details.postScripts != null) {
+            runPostScripts(details.postScripts, exportDataSource)
+        }
+
     }
 
-    private fun importApplication(importDbConnection: Connection, exportDbConnection: Connection, importList: List<DatabaseImport>) {
-        importDbConnection.autoCommit = false
-        exportDbConnection.autoCommit = false
+    private fun getDbProductAndVersion(dataSource: HikariDataSource): DatabaseMetaData {
+        dataSource.connection.use {
+            return DatabaseMetaData(it.metaData.databaseProductName, it.metaData.databaseProductVersion)
+        }
+    }
 
-        val importMeta = importDbConnection.metaData
+    private fun importApplication(importDataSource: HikariDataSource, exportDataSource: HikariDataSource, importList: List<DatabaseImport>) {
+        val importMeta = getDbProductAndVersion(importDataSource)
 
-        // Attempt to use a forward moving cursor for result sets in order to cut down on memory usage when fetching millions of rows
-        val importStatement = importDbConnection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
-        val exportStatement = exportDbConnection.createStatement()
-
-        logger.info("Database product: ${importMeta.databaseProductName}")
-        logger.info("Database version: ${importMeta.databaseProductVersion}")
+        logger.info("Database product: ${importMeta.productName}")
+        logger.info("Database version: ${importMeta.version}")
 
         for (import in importList) {
             logger.info("Importing ${import.table}...")
 
-            prepareImportTable(import.table, importStatement, exportStatement)
+            prepareImportTable(import.table, importDataSource, exportDataSource)
 
-            importStatement.fetchSize = import.fetchSize ?: 10000
-
-            importTable(import, importStatement, exportDbConnection)
+            importTable(import, importDataSource, exportDataSource)
         }
-
-        importStatement.close()
-        exportStatement.close()
     }
 
-    private fun runPostScripts(connection: Connection, scripts: List<PostRunScript>) {
-        val statement = connection.createStatement()
-
+    private fun runPostScripts(scripts: List<PostRunScript>, dataSource: HikariDataSource) {
         for (script in scripts) {
-            logger.info("Running script: ${script.label}...")
+            dataSource.connection.use { connection ->
+                connection.createStatement().use { statement ->
+                    logger.info("Running script: ${script.label}...")
 
-            statement.executeUpdate(script.sql)
+                    statement.executeUpdate(script.sql)
 
-            logger.info("${script.label} complete")
+                    logger.info("${script.label} complete")
+                }
+            }
         }
-
-        statement.close()
     }
 
     @Throws(Exception::class)
-    private fun prepareImportTable(table: String, importStatement: Statement, exportStatement: Statement) {
-
+    private fun prepareImportTable(table: String, importDataSource: HikariDataSource, exportDataSource: HikariDataSource) {
         try {
-            // Check if the table to import to already exists
-            val tableDetectSql = "SELECT * FROM $table WHERE 1 = 2"
+            // Check if the target table already exists
+            exportDataSource.connection.use { connection ->
+                connection.createStatement().use { statement ->
+                    val tableDetectSql = "SELECT * FROM $table WHERE 1 = 2"
 
-            exportStatement.executeQuery(tableDetectSql)
+                    statement.executeQuery(tableDetectSql)
+
+                    logger.info("Target table [$table] already exists and will be used")
+                }
+            }
         } catch (e: Exception) {
             // Table doesn't exist, so create it
-            val script = getTableCreateScript(table, importStatement)
+            val script = getTableCreateScript(table, importDataSource)
 
-            exportStatement.execute(script)
+            exportDataSource.connection.use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.execute(script)
+                }
+            }
         }
     }
 
     @Throws(Exception::class)
-    private fun getTableCreateScript(table: String, statement: Statement) : String {
+    private fun getTableCreateScript(table: String, dataSource: HikariDataSource) : String {
         val script = StringBuffer()
 
-        val tableDetectSql = "SELECT * FROM $table WHERE 1 = 2"
-        val rs = statement.executeQuery(tableDetectSql)
-        val meta = rs.metaData
+        dataSource.connection.use{ connection ->
+            connection.createStatement().use { statement ->
+                val tableDetectSql = "SELECT * FROM $table WHERE 1 = 2"
+                val rs = statement.executeQuery(tableDetectSql)
+                val meta = rs.metaData
 
-        script.append("CREATE TABLE $table ( ")
+                script.append("CREATE TABLE $table ( ")
 
-        var first = true
+                var first = true
 
-        for (i in 1..meta.columnCount) {
-            if (first) {
-                first = false
-            } else {
-                script.append(", ")
-            }
+                for (i in 1..meta.columnCount) {
+                    if (first) {
+                        first = false
+                    } else {
+                        script.append(", ")
+                    }
 
-            val name = meta.getColumnName(i)
-            val type = typeToTypeName(meta.getColumnType(i))
-            val size = meta.getPrecision(i)
-            val precision = meta.getScale(i)
+                    val name = meta.getColumnName(i)
+                    val type = typeToTypeName(meta.getColumnType(i))
+                    val size = meta.getPrecision(i)
+                    val precision = meta.getScale(i)
 
-            val nullable = if (meta.isNullable(i) == ResultSetMetaData.columnNoNulls) "NOT NULL" else ""
+                    val nullable = if (meta.isNullable(i) == ResultSetMetaData.columnNoNulls) "NOT NULL" else ""
 
-            if (isSizable(type) && isNumeric(type)) {
-                script.append("$name $type ($size,$precision) $nullable")
-            } else if(isSizable(type)) {
-                // If this is a sizable type and the size is 0, the JDBC driver probably isn't implemented correctly
-                // so just the target column the max size (this will need to be reworked to be more DB agnostic
-                val colSize = if (size == 0) "MAX" else size.toString()
+                    if (isSizable(type) && isNumeric(type)) {
+                        script.append("$name $type ($size,$precision) $nullable")
+                    } else if(isSizable(type)) {
+                        // If this is a sizable type and the size is 0, the JDBC driver probably isn't implemented correctly
+                        // so just the target column the max size (this will need to be reworked to be more DB agnostic
+                        val colSize = if (size == 0) "MAX" else size.toString()
 
-                script.append("$name $type ($colSize) $nullable")
-            } else {
-                script.append("$name $type $nullable")
+                        script.append("$name $type ($colSize) $nullable")
+                    } else {
+                        script.append("$name $type $nullable")
+                    }
+                }
+
+                script.append(")")
+
+                rs.close()
             }
         }
-
-        script.append(")")
-
-        rs.close()
 
         return script.toString()
     }
 
 
     @Throws(Exception::class)
-    private fun importTable(import: DatabaseImport, importStatement: Statement, exportConnection: Connection) {
+    private fun importTable(import: DatabaseImport, importDataSource: HikariDataSource, exportDataSource: HikariDataSource) {
         val insertBatchSize = exportConfig.exportBatchSize ?: 10000
         val columnDetectSql = "SELECT * FROM ${import.table} WHERE 1 = 2"
         val selectSql = import.query ?: "SELECT * FROM ${import.table}"
+        val insertSql = StringBuffer()
+        val columnTypes = ArrayList<Int>()
 
-        val metaRs = importStatement.executeQuery(columnDetectSql)
-        val meta = metaRs.metaData
-        val columnTypes = Array(meta.columnCount) { -1 }
+        importDataSource.connection.use { connection ->
+            connection.createStatement().use { statement ->
+                val metaRs = statement.executeQuery(columnDetectSql)
+                val meta = metaRs.metaData
 
-        for (i in 1..meta.columnCount) {
-            columnTypes[i - 1] = meta.getColumnType(i)
+                for (i in 1..meta.columnCount) {
+                    columnTypes.add(meta.getColumnType(i))
+                }
+
+                insertSql.append("INSERT INTO ${import.table} VALUES (${setupParameterList(meta.columnCount)})")
+
+                metaRs.close()
+            }
         }
 
-        val insertSql = "INSERT INTO ${import.table} VALUES (${setupParameterList(meta.columnCount)})"
+        importDataSource.connection.use { importConnection ->
+            // Attempt to use a forward moving cursor for result sets in order to cut down on memory usage when fetching millions of rows
+            importConnection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY).use { importStatement ->
+                importStatement.fetchSize = import.fetchSize ?: 10000
 
-        metaRs.close()
+                val rs = importStatement.executeQuery(selectSql)
 
-        val rs = importStatement.executeQuery(selectSql)
-        val ps = exportConnection.prepareStatement(insertSql)
+                exportDataSource.connection.use { exportConnection ->
+                    exportConnection.autoCommit = false
 
-        var rowCount = 0
+                    exportConnection.prepareStatement(insertSql.toString()).use { exportStatement ->
+                        var rowCount = 0
 
-        while (rs.next()) {
-            rowCount++
+                        while (rs.next()) {
+                            rowCount++
 
-            for (i in 1..columnTypes.count()) {
-                when (columnTypes[i - 1]) {
-                    Types.ARRAY -> ps.setArray(i, rs.getArray(i))
-                    Types.BIGINT -> ps.setLong(i, rs.getLong(i))
-                    Types.BINARY -> ps.setBinaryStream(i, rs.getBinaryStream(i))
-                    Types.BIT -> ps.setBoolean(i, rs.getBoolean(i))
-                    Types.BLOB -> ps.setBlob(i, rs.getBlob(i))
-                    Types.CLOB -> ps.setString(i, rs.getString(i))
-                    Types.BOOLEAN -> ps.setBoolean(i, rs.getBoolean(i))
-                    Types.CHAR -> ps.setString(i, rs.getString(i))
-                    Types.DATE -> ps.setDate(i, rs.getDate(i))
-                    Types.DECIMAL -> ps.setBigDecimal(i, rs.getBigDecimal(i))
-                    Types.DOUBLE -> ps.setDouble(i, rs.getDouble(i))
-                    Types.FLOAT -> ps.setFloat(i, rs.getFloat(i))
-                    Types.INTEGER -> ps.setInt(i, rs.getInt(i))
-                    Types.NCHAR -> ps.setString(i, rs.getString(i))
-                    Types.NUMERIC -> ps.setBigDecimal(i, rs.getBigDecimal(i))
-                    Types.NVARCHAR -> ps.setString(i, rs.getString(i))
-                    Types.ROWID -> ps.setLong(i, rs.getLong(i))
-                    Types.SMALLINT -> ps.setShort(i, rs.getShort(i))
-                    Types.SQLXML -> ps.setString(i, rs.getString(i))
-                    Types.TIME -> ps.setTime(i, rs.getTime(i))
-                    Types.TIMESTAMP -> ps.setTimestamp(i, rs.getTimestamp(i))
-                    Types.TINYINT -> ps.setByte(i, rs.getByte(i))
-                    Types.VARBINARY -> ps.setBytes(i, rs.getBytes(i))
-                    Types.VARCHAR -> ps.setString(i, rs.getString(i))
-                    Types.LONGVARBINARY -> ps.setBytes(i, rs.getBytes(i))
-                    Types.LONGVARCHAR -> ps.setString(i, rs.getString(i))
-                    else -> ps.setBlob(i, rs.getBlob(i))
+                            for (i in 1..columnTypes.count()) {
+                                when (columnTypes[i - 1]) {
+                                    Types.ARRAY -> exportStatement.setArray(i, rs.getArray(i))
+                                    Types.BIGINT -> exportStatement.setLong(i, rs.getLong(i))
+                                    Types.BINARY -> exportStatement.setBinaryStream(i, rs.getBinaryStream(i))
+                                    Types.BIT -> exportStatement.setBoolean(i, rs.getBoolean(i))
+                                    Types.BLOB -> exportStatement.setBlob(i, rs.getBlob(i))
+                                    Types.CLOB -> exportStatement.setString(i, rs.getString(i))
+                                    Types.BOOLEAN -> exportStatement.setBoolean(i, rs.getBoolean(i))
+                                    Types.CHAR -> exportStatement.setString(i, rs.getString(i))
+                                    Types.DATE -> exportStatement.setDate(i, rs.getDate(i))
+                                    Types.DECIMAL -> exportStatement.setBigDecimal(i, rs.getBigDecimal(i))
+                                    Types.DOUBLE -> exportStatement.setDouble(i, rs.getDouble(i))
+                                    Types.FLOAT -> exportStatement.setFloat(i, rs.getFloat(i))
+                                    Types.INTEGER -> exportStatement.setInt(i, rs.getInt(i))
+                                    Types.NCHAR -> exportStatement.setString(i, rs.getString(i))
+                                    Types.NUMERIC -> exportStatement.setBigDecimal(i, rs.getBigDecimal(i))
+                                    Types.NVARCHAR -> exportStatement.setString(i, rs.getString(i))
+                                    Types.ROWID -> exportStatement.setLong(i, rs.getLong(i))
+                                    Types.SMALLINT -> exportStatement.setShort(i, rs.getShort(i))
+                                    Types.SQLXML -> exportStatement.setString(i, rs.getString(i))
+                                    Types.TIME -> exportStatement.setTime(i, rs.getTime(i))
+                                    Types.TIMESTAMP -> exportStatement.setTimestamp(i, rs.getTimestamp(i))
+                                    Types.TINYINT -> exportStatement.setByte(i, rs.getByte(i))
+                                    Types.VARBINARY -> exportStatement.setBytes(i, rs.getBytes(i))
+                                    Types.VARCHAR -> exportStatement.setString(i, rs.getString(i))
+                                    Types.LONGVARBINARY -> exportStatement.setBytes(i, rs.getBytes(i))
+                                    Types.LONGVARCHAR -> exportStatement.setString(i, rs.getString(i))
+                                    else -> exportStatement.setBlob(i, rs.getBlob(i))
+                                }
+                            }
+
+                            exportStatement.addBatch()
+
+                            if (rowCount % insertBatchSize == 0) {
+                                exportStatement.executeBatch()
+                                exportConnection.commit()
+
+                                logger.info("Exported ${NumberFormat.getInstance().format(rowCount)} records so far...")
+                            }
+                        }
+
+                        exportStatement.executeBatch()
+                        exportConnection.commit()
+
+                        rs.close()
+
+                        logger.info("Processed ${NumberFormat.getInstance().format(rowCount)} record(s) from ${import.table}")
+                    }
                 }
             }
-
-            ps.addBatch()
-
-            if (rowCount % insertBatchSize == 0) {
-                ps.executeBatch()
-                exportConnection.commit()
-
-                logger.info("Exported ${NumberFormat.getInstance().format(rowCount)} records so far...")
-            }
         }
-
-        ps.executeBatch()
-        exportConnection.commit()
-
-        ps.close()
-        rs.close()
-
-        logger.info("Processed ${NumberFormat.getInstance().format(rowCount)} record(s) from ${import.table}")
     }
 
     private fun setupParameterList(columns: Int) : String {
@@ -294,4 +334,6 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
 
         return numericTypes.contains(type)
     }
+
+    private data class DatabaseMetaData(val productName: String, val version: String)
 }
