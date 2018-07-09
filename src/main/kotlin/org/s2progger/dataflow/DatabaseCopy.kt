@@ -33,12 +33,30 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
         importConnectionConfig.username = details.username
         importConnectionConfig.password = details.password
 
+        if (details.testQuery != null)
+            importConnectionConfig.connectionTestQuery = details.testQuery
+
+        if (details.dataSourceProperties != null) {
+            details.dataSourceProperties.forEach {
+                importConnectionConfig.addDataSourceProperty(it.property, it.value)
+            }
+        }
+
         val exportConnectionConfig = HikariConfig()
 
         exportConnectionConfig.driverClassName = exportConfig.driver
         exportConnectionConfig.jdbcUrl = exportUrl
         exportConnectionConfig.username = exportConfig.username
         exportConnectionConfig.password = exportConfig.password
+
+        if (exportConfig.testQuery != null)
+            exportConnectionConfig.connectionTestQuery = exportConfig.testQuery
+
+        if (exportConfig.dataSourceProperties != null) {
+            exportConfig.dataSourceProperties.forEach {
+                exportConnectionConfig.addDataSourceProperty(it.property, it.value)
+            }
+        }
 
         val importDataSource = HikariDataSource(importConnectionConfig)
         val exportDataSource = HikariDataSource(exportConnectionConfig)
@@ -155,11 +173,11 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
 
                     val nullable = if (meta.isNullable(i) == ResultSetMetaData.columnNoNulls) "NOT NULL" else ""
 
-                    if (isSizable(type) && isNumeric(type)) {
-                        script.append("$name $type ($size,$precision) $nullable")
-                    } else if(isSizable(type)) {
+                    if (isSizable(type) && isNumeric(type) && precision >= 0) {
+                        script.append("$name $type ($size, $precision) $nullable")
+                    } else if(isSizable(type) && precision >= 0) {
                         // If this is a sizable type and the size is 0, the JDBC driver probably isn't implemented correctly
-                        // so just the target column the max size (this will need to be reworked to be more DB agnostic
+                        // so just the target column the max size (this will need to be reworked to be more DB agnostic)
                         val colSize = if (size == 0) "MAX" else size.toString()
 
                         script.append("$name $type ($colSize) $nullable")
@@ -204,7 +222,11 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
         importDataSource.connection.use { importConnection ->
             // Attempt to use a forward moving cursor for result sets in order to cut down on memory usage when fetching millions of rows
             importConnection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY).use { importStatement ->
-                importStatement.fetchSize = import.fetchSize ?: 10000
+                if (import.fetchSize != null)
+                    importStatement.fetchSize = import.fetchSize
+
+                if (import.preQuery != null)
+                    importStatement.executeUpdate(import.preQuery)
 
                 val rs = importStatement.executeQuery(selectSql)
 
@@ -239,7 +261,7 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
                                     Types.SMALLINT -> exportStatement.setShort(i, rs.getShort(i))
                                     Types.SQLXML -> exportStatement.setString(i, rs.getString(i))
                                     Types.TIME -> exportStatement.setTime(i, rs.getTime(i))
-                                    Types.TIMESTAMP -> exportStatement.setTimestamp(i, rs.getTimestamp(i))
+                                    Types.TIMESTAMP -> exportStatement.setDate(i, rs.getDate(i))
                                     Types.TINYINT -> exportStatement.setByte(i, rs.getByte(i))
                                     Types.VARBINARY -> exportStatement.setBytes(i, rs.getBytes(i))
                                     Types.VARCHAR -> exportStatement.setString(i, rs.getString(i))
@@ -311,7 +333,7 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
             Types.SMALLINT  -> "SMALLINT"
             Types.SQLXML    -> "BLOB"
             Types.TIME      -> "TIME"
-            Types.TIMESTAMP -> "TIMESTAMP"
+            Types.TIMESTAMP -> "DATETIME"
             Types.TINYINT   -> "TINYINT"
             Types.VARBINARY -> "VARBINARY"
             Types.VARCHAR   -> "VARCHAR"

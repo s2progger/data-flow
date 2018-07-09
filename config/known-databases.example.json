@@ -8,6 +8,11 @@
         "url": "jdbc:oracle:thin:@[host]:[port]:[sid]",
         "username": "",
         "password": "",
+        "dataSourceProperties": [
+          { "property": "oracle.net.CONNECT_TIMEOUT", "value": "1860000" },
+          { "property": "oracle.jdbc.ReadTimeout", "value": "1860000" }
+        ],
+        "testQuery": "SELECT 1 FROM DUAL",
         "imports": [
           { "table": "EXAMPLE_TABLE_1", "fetchSize": 20000 },
           { "table": "EXAMPLE_TABLE_2", "query": "SELECT * FROM EXAMPLE_TABLE_2 WHERE year >= 2014" }
