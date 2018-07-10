@@ -100,7 +100,7 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
         for (import in importList) {
             logger.info("Importing ${import.table}...")
 
-            prepareImportTable(import.table, importDataSource, exportDataSource)
+            prepareImportTable(import.table, import.target ?: import.table, importDataSource, exportDataSource)
 
             importTable(import, importDataSource, exportDataSource)
         }
@@ -121,21 +121,21 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
     }
 
     @Throws(Exception::class)
-    private fun prepareImportTable(table: String, importDataSource: HikariDataSource, exportDataSource: HikariDataSource) {
+    private fun prepareImportTable(sourceTable: String, targetTable: String, importDataSource: HikariDataSource, exportDataSource: HikariDataSource) {
         try {
             // Check if the target table already exists
             exportDataSource.connection.use { connection ->
                 connection.createStatement().use { statement ->
-                    val tableDetectSql = "SELECT * FROM $table WHERE 1 = 2"
+                    val tableDetectSql = "SELECT * FROM $sourceTable WHERE 1 = 2"
 
                     statement.executeQuery(tableDetectSql)
 
-                    logger.info("Target table [$table] already exists and will be used")
+                    logger.info("Target table [$sourceTable] already exists and will be used")
                 }
             }
         } catch (e: Exception) {
             // Table doesn't exist, so create it
-            val script = getTableCreateScript(table, importDataSource)
+            val script = getTableCreateScript(sourceTable, targetTable, importDataSource)
 
             exportDataSource.connection.use { connection ->
                 connection.createStatement().use { statement ->
@@ -146,16 +146,16 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
     }
 
     @Throws(Exception::class)
-    private fun getTableCreateScript(table: String, dataSource: HikariDataSource) : String {
+    private fun getTableCreateScript(sourceTable: String, tartgetTable: String, dataSource: HikariDataSource) : String {
         val script = StringBuffer()
 
         dataSource.connection.use{ connection ->
             connection.createStatement().use { statement ->
-                val tableDetectSql = "SELECT * FROM $table WHERE 1 = 2"
+                val tableDetectSql = "SELECT * FROM $sourceTable WHERE 1 = 2"
                 val rs = statement.executeQuery(tableDetectSql)
                 val meta = rs.metaData
 
-                script.append("CREATE TABLE $table ( ")
+                script.append("CREATE TABLE $tartgetTable ( ")
 
                 var first = true
 
@@ -213,7 +213,7 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
                     columnTypes.add(meta.getColumnType(i))
                 }
 
-                insertSql.append("INSERT INTO ${import.table} VALUES (${setupParameterList(meta.columnCount)})")
+                insertSql.append("INSERT INTO ${import.target ?: import.table} VALUES (${setupParameterList(meta.columnCount)})")
 
                 metaRs.close()
             }

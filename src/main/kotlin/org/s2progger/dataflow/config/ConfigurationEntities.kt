@@ -38,6 +38,7 @@ data class DatabaseConnectionDetail (
 
 data class DatabaseImport (
         val table: String,
+        val target: String?,
         val fetchSize: Int?,
         val query: String?,
         val preQuery: String?

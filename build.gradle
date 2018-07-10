@@ -35,7 +35,7 @@ dependencies {
     compile "com.h2database:h2:1.4.197"
     compile "com.microsoft.sqlserver:mssql-jdbc:6.4.0.jre8"
     compile "com.zaxxer:HikariCP:3.1.0"
-    compile files("libs/ojdbc8.jar")
+    compile files("libs/ojdbc14.jar")
 
     testCompile group: 'junit', name: 'junit', version: '4.12'
 }
