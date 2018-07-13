@@ -28,6 +28,7 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
 
         val importConnectionConfig = HikariConfig()
 
+        importConnectionConfig.poolName = "Import connection pool"
         importConnectionConfig.driverClassName = details.driver
         importConnectionConfig.jdbcUrl = details.url
         importConnectionConfig.username = details.username
@@ -44,6 +45,7 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
 
         val exportConnectionConfig = HikariConfig()
 
+        exportConnectionConfig.poolName = "Export connection pool"
         exportConnectionConfig.driverClassName = exportConfig.driver
         exportConnectionConfig.jdbcUrl = exportUrl
         exportConnectionConfig.username = exportConfig.username
@@ -149,7 +151,7 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
     private fun getTableCreateScript(sourceTable: String, tartgetTable: String, dataSource: HikariDataSource) : String {
         val script = StringBuffer()
 
-        dataSource.connection.use{ connection ->
+        dataSource.connection.use { connection ->
             connection.createStatement().use { statement ->
                 val tableDetectSql = "SELECT * FROM $sourceTable WHERE 1 = 2"
                 val rs = statement.executeQuery(tableDetectSql)
@@ -275,6 +277,8 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
 
                             if (rowCount % insertBatchSize == 0) {
                                 exportStatement.executeBatch()
+                                exportStatement.clearParameters()
+
                                 exportConnection.commit()
 
                                 logger.info("Exported ${NumberFormat.getInstance().format(rowCount)} records so far...")

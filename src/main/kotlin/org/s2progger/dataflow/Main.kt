@@ -55,7 +55,7 @@ class Main : CliktCommand(name = "data-flow", help = "Export database tables") {
                 }
             }
 
-            logger.error("Application terminated")
+            logger.info("Application terminated")
         } catch (e: Throwable){
             logger.error(e.toString())
         }
