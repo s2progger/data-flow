@@ -41,7 +41,12 @@ data class DatabaseImport (
         val target: String?,
         val fetchSize: Int?,
         val query: String?,
-        val preQuery: String?
+        val preTasks: List<DbTask>?,
+        val postTasks: List<DbTask>?
+)
+
+data class DbTask (
+        val sql: String
 )
 
 data class PostRunScript (

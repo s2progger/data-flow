@@ -3,13 +3,12 @@ package org.s2progger.dataflow
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import mu.KotlinLogging
-import org.s2progger.dataflow.config.DatabaseConnectionDetail
-import org.s2progger.dataflow.config.DatabaseImport
-import org.s2progger.dataflow.config.ExportDbConfiguration
-import org.s2progger.dataflow.config.PostRunScript
+import org.s2progger.dataflow.config.*
 import java.io.File
 import java.sql.*
 import java.text.NumberFormat
+import org.apache.commons.lang3.time.StopWatch
+import kotlin.math.roundToInt
 
 class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
     private val logger = KotlinLogging.logger {}
@@ -102,9 +101,14 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
         for (import in importList) {
             logger.info("Importing ${import.table}...")
 
-            prepareImportTable(import.table, import.target ?: import.table, importDataSource, exportDataSource)
+            if (import.preTasks != null)
+                runDbTasks(import.table, import.preTasks, exportDataSource)
 
+            prepareImportTable(import.table, import.target ?: import.table, importDataSource, exportDataSource)
             importTable(import, importDataSource, exportDataSource)
+
+            if (import.postTasks != null)
+                runDbTasks(import.table, import.postTasks, exportDataSource)
         }
     }
 
@@ -123,16 +127,29 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
     }
 
     @Throws(Exception::class)
+    private fun runDbTasks(table: String, tasks: List<DbTask>, dataSource: HikariDataSource) {
+        logger.info("Running ${tasks.count()} task(s) for $table")
+
+        tasks.forEach { task ->
+            dataSource.connection.use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.execute(task.sql)
+                }
+            }
+        }
+    }
+
+    @Throws(Exception::class)
     private fun prepareImportTable(sourceTable: String, targetTable: String, importDataSource: HikariDataSource, exportDataSource: HikariDataSource) {
         try {
             // Check if the target table already exists
             exportDataSource.connection.use { connection ->
                 connection.createStatement().use { statement ->
-                    val tableDetectSql = "SELECT * FROM $sourceTable WHERE 1 = 2"
+                    val tableDetectSql = "SELECT * FROM $targetTable WHERE 1 = 2"
 
                     statement.executeQuery(tableDetectSql)
 
-                    logger.info("Target table [$sourceTable] already exists and will be used")
+                    logger.info("Target table [$targetTable] already exists and will be used")
                 }
             }
         } catch (e: Exception) {
@@ -197,7 +214,6 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
         return script.toString()
     }
 
-
     @Throws(Exception::class)
     private fun importTable(import: DatabaseImport, importDataSource: HikariDataSource, exportDataSource: HikariDataSource) {
         val insertBatchSize = exportConfig.exportBatchSize ?: 10000
@@ -227,16 +243,22 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
                 if (import.fetchSize != null)
                     importStatement.fetchSize = import.fetchSize
 
-                if (import.preQuery != null)
-                    importStatement.executeUpdate(import.preQuery)
+                logger.info("Running select from ${import.table}")
 
                 val rs = importStatement.executeQuery(selectSql)
+
+                logger.info("Results from ${import.table} received, copying to target...")
 
                 exportDataSource.connection.use { exportConnection ->
                     exportConnection.autoCommit = false
 
                     exportConnection.prepareStatement(insertSql.toString()).use { exportStatement ->
                         var rowCount = 0
+                        val fullTimer= StopWatch()
+                        val batchTimer = StopWatch()
+
+                        fullTimer.start()
+                        batchTimer.start()
 
                         while (rs.next()) {
                             rowCount++
@@ -281,16 +303,27 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
 
                                 exportConnection.commit()
 
-                                logger.info("Exported ${NumberFormat.getInstance().format(rowCount)} records so far...")
+                                batchTimer.stop()
+
+                                val batchSpeed: Double = insertBatchSize.toDouble() / (batchTimer.time.toDouble() / 1000.toDouble())
+                                val totalSpeed: Double = rowCount.toDouble() / (fullTimer.time.toDouble() / 1000.toDouble())
+
+                                logger.info("Imported ${NumberFormat.getInstance().format(rowCount)} record(s) from ${import.table} so far (batch avg ${batchSpeed.roundToInt()} row/s : rolling avg ${totalSpeed.roundToInt()} rows/s)")
+
+                                batchTimer.reset()
+                                batchTimer.start()
                             }
                         }
 
                         exportStatement.executeBatch()
                         exportConnection.commit()
 
+                        batchTimer.stop()
+                        fullTimer.stop()
                         rs.close()
 
-                        logger.info("Processed ${NumberFormat.getInstance().format(rowCount)} record(s) from ${import.table}")
+                        val speed: Double = rowCount.toDouble() / (fullTimer.time.toDouble() / 1000.toDouble())
+                        logger.info("Processed ${NumberFormat.getInstance().format(rowCount)} record(s) from ${import.table} (avg ${speed.roundToInt()} row/s)")
                     }
                 }
             }
