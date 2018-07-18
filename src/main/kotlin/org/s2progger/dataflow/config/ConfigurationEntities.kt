@@ -7,6 +7,7 @@ data class ExportDbConfiguration (
         val urlProtocol: String,
         val urlOptions: String,
         val testQuery: String?,
+        val dialect: String?,
         val dataSourceProperties: List<DataSourceProperty>?,
         val sqlSetupCommands: String?,
         val username: String?,
@@ -24,7 +25,6 @@ data class KnownDatabase (
 
 data class DatabaseConnectionDetail (
         val driver: String,
-        val h2CompatibilityMode: String?,
         val url: String,
         val username: String?,
         val password: String?,
