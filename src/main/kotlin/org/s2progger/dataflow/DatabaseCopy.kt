@@ -148,10 +148,14 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
         logger.info("Running ${tasks.count()} task(s) for $table")
 
         tasks.forEach { task ->
-            dataSource.connection.use { connection ->
-                connection.createStatement().use { statement ->
-                    statement.execute(task.sql)
+            try {
+                dataSource.connection.use { connection ->
+                    connection.createStatement().use { statement ->
+                        statement.execute(task.sql)
+                    }
                 }
+            } catch (e: Exception) {
+                logger.error("Task exception: ${e.toString()}")
             }
         }
     }
