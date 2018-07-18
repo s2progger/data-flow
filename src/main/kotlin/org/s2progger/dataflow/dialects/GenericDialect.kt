@@ -70,13 +70,13 @@ open class GenericDialect : DatabaseDialect {
     }
     
     override fun isSizable(type: String): Boolean {
-        val sizableTypes = arrayListOf("VARCHAR", "NUMERIC", "DECIMAL", "CHAR", "NCHAR", "NVARCHAR")
+        val sizableTypes = arrayListOf("VARCHAR2", "VARCHAR", "NUMERIC", "NUMBER", "DECIMAL", "CHAR", "NCHAR", "NVARCHAR", "NVARCHAR2")
 
         return sizableTypes.contains(type)
     }
 
     override fun isNumeric(type: String): Boolean {
-        val numericTypes = arrayListOf("NUMERIC", "DECIMAL")
+        val numericTypes = arrayListOf("NUMERIC", "DECIMAL", "NUMBER")
 
         return numericTypes.contains(type)
     }
