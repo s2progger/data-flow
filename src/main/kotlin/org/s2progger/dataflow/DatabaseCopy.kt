@@ -8,14 +8,29 @@ import java.io.File
 import java.sql.*
 import java.text.NumberFormat
 import org.apache.commons.lang3.time.StopWatch
+import org.s2progger.dataflow.dialects.DatabaseDialect
+import org.s2progger.dataflow.dialects.GenericDialect
+import org.s2progger.dataflow.dialects.MsSqlDialect
+import org.s2progger.dataflow.dialects.OracleDialect
 import kotlin.math.roundToInt
 
 class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
     private val logger = KotlinLogging.logger {}
+    private val dialect: DatabaseDialect
 
     init {
         if (exportConfig.outputFolder != null) {
             File(exportConfig.outputFolder).mkdirs()
+        }
+
+        if (exportConfig.dialect != null) {
+            when (exportConfig.dialect.toUpperCase()) {
+                "ORACLE" -> dialect = OracleDialect()
+                "MSSQL" -> dialect = MsSqlDialect()
+                else -> dialect = GenericDialect()
+            }
+        } else {
+            dialect = GenericDialect()
         }
     }
 
@@ -91,6 +106,8 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
             return DatabaseMetaData(it.metaData.databaseProductName, it.metaData.databaseProductVersion)
         }
     }
+
+    private data class DatabaseMetaData(val productName: String, val version: String)
 
     private fun importApplication(importDataSource: HikariDataSource, exportDataSource: HikariDataSource, importList: List<DatabaseImport>) {
         val importMeta = getDbProductAndVersion(importDataSource)
@@ -190,15 +207,15 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
                     }
 
                     val name = meta.getColumnName(i)
-                    val type = typeToTypeName(meta.getColumnType(i))
+                    val type = dialect.typeToTypeName(meta.getColumnType(i))
                     val size = meta.getPrecision(i)
                     val precision = meta.getScale(i)
 
                     val nullable = if (meta.isNullable(i) == ResultSetMetaData.columnNoNulls) "NOT NULL" else ""
 
-                    if (isSizable(type) && isNumeric(type) && precision >= 0) {
+                    if (dialect.isSizable(type) && dialect.isNumeric(type) && precision >= 0) {
                         script.append("$name $type ($size, $precision) $nullable")
-                    } else if(isSizable(type) && precision >= 0) {
+                    } else if(dialect.isSizable(type) && precision >= 0) {
                         // If this is a sizable type and the size is 0, the JDBC driver probably isn't implemented correctly
                         // so just the target column the max size (this will need to be reworked to be more DB agnostic)
                         val colSize = if (size == 0) "MAX" else size.toString()
@@ -268,35 +285,7 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
                             rowCount++
 
                             for (i in 1..columnTypes.count()) {
-                                when (columnTypes[i - 1]) {
-                                    Types.ARRAY -> exportStatement.setArray(i, rs.getArray(i))
-                                    Types.BIGINT -> exportStatement.setLong(i, rs.getLong(i))
-                                    Types.BINARY -> exportStatement.setBinaryStream(i, rs.getBinaryStream(i))
-                                    Types.BIT -> exportStatement.setBoolean(i, rs.getBoolean(i))
-                                    Types.BLOB -> exportStatement.setBlob(i, rs.getBlob(i))
-                                    Types.CLOB -> exportStatement.setString(i, rs.getString(i))
-                                    Types.BOOLEAN -> exportStatement.setBoolean(i, rs.getBoolean(i))
-                                    Types.CHAR -> exportStatement.setString(i, rs.getString(i))
-                                    Types.DATE -> exportStatement.setDate(i, rs.getDate(i))
-                                    Types.DECIMAL -> exportStatement.setBigDecimal(i, rs.getBigDecimal(i))
-                                    Types.DOUBLE -> exportStatement.setDouble(i, rs.getDouble(i))
-                                    Types.FLOAT -> exportStatement.setFloat(i, rs.getFloat(i))
-                                    Types.INTEGER -> exportStatement.setInt(i, rs.getInt(i))
-                                    Types.NCHAR -> exportStatement.setString(i, rs.getString(i))
-                                    Types.NUMERIC -> exportStatement.setBigDecimal(i, rs.getBigDecimal(i))
-                                    Types.NVARCHAR -> exportStatement.setString(i, rs.getString(i))
-                                    Types.ROWID -> exportStatement.setLong(i, rs.getLong(i))
-                                    Types.SMALLINT -> exportStatement.setShort(i, rs.getShort(i))
-                                    Types.SQLXML -> exportStatement.setString(i, rs.getString(i))
-                                    Types.TIME -> exportStatement.setTime(i, rs.getTime(i))
-                                    Types.TIMESTAMP -> exportStatement.setDate(i, rs.getDate(i))
-                                    Types.TINYINT -> exportStatement.setByte(i, rs.getByte(i))
-                                    Types.VARBINARY -> exportStatement.setBytes(i, rs.getBytes(i))
-                                    Types.VARCHAR -> exportStatement.setString(i, rs.getString(i))
-                                    Types.LONGVARBINARY -> exportStatement.setBytes(i, rs.getBytes(i))
-                                    Types.LONGVARCHAR -> exportStatement.setString(i, rs.getString(i))
-                                    else -> exportStatement.setBlob(i, rs.getBlob(i))
-                                }
+                                dialect.setPsValueFromRs(columnTypes[i - 1], rs, i, exportStatement, i)
                             }
 
                             exportStatement.addBatch()
@@ -351,50 +340,4 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
 
         return result.toString()
     }
-
-    private fun typeToTypeName(type: Int) : String {
-        return when (type) {
-            Types.ARRAY     -> "ARRAY"
-            Types.BIGINT    -> "BIGINT"
-            Types.BINARY    -> "BINARY"
-            Types.BIT       -> "BIT"
-            Types.BLOB      -> "BLOB"
-            Types.CLOB      -> "CLOB"
-            Types.BOOLEAN   -> "BIT"
-            Types.CHAR      -> "CHAR"
-            Types.DATE      -> "DATE"
-            Types.DECIMAL   -> "DECIMAL"
-            Types.DOUBLE    -> "DOUBLE"
-            Types.FLOAT     -> "FLOAT"
-            Types.INTEGER   -> "INT"
-            Types.NCHAR     -> "NCHAR"
-            Types.NUMERIC   -> "NUMERIC"
-            Types.NVARCHAR  -> "NVARCHAR"
-            Types.ROWID     -> "BIGINT"
-            Types.SMALLINT  -> "SMALLINT"
-            Types.SQLXML    -> "BLOB"
-            Types.TIME      -> "TIME"
-            Types.TIMESTAMP -> "DATETIME"
-            Types.TINYINT   -> "TINYINT"
-            Types.VARBINARY -> "VARBINARY"
-            Types.VARCHAR   -> "VARCHAR"
-            Types.LONGVARBINARY -> "VARBINARY(MAX)"
-            Types.LONGVARCHAR   -> "VARCHAR(MAX)"
-            else            -> "BLOB"
-        }
-    }
-
-    private fun isSizable(type: String) : Boolean {
-        val sizableTypes = arrayListOf("VARCHAR", "NUMERIC", "DECIMAL", "CHAR", "NCHAR", "NVARCHAR")
-
-        return sizableTypes.contains(type)
-    }
-
-    private fun isNumeric(type: String) : Boolean {
-        val numericTypes = arrayListOf("NUMERIC", "DECIMAL")
-
-        return numericTypes.contains(type)
-    }
-
-    private data class DatabaseMetaData(val productName: String, val version: String)
 }
