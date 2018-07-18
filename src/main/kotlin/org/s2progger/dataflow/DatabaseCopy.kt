@@ -10,6 +10,7 @@ import java.text.NumberFormat
 import org.apache.commons.lang3.time.StopWatch
 import org.s2progger.dataflow.dialects.DatabaseDialect
 import org.s2progger.dataflow.dialects.GenericDialect
+import org.s2progger.dataflow.dialects.MsSqlDialect
 import org.s2progger.dataflow.dialects.OracleDialect
 import kotlin.math.roundToInt
 
@@ -25,12 +26,12 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
         if (exportConfig.dialect != null) {
             when (exportConfig.dialect.toUpperCase()) {
                 "ORACLE" -> dialect = OracleDialect()
+                "MSSQL" -> dialect = MsSqlDialect()
                 else -> dialect = GenericDialect()
             }
         } else {
             dialect = GenericDialect()
         }
-
     }
 
     fun copyDatabase(dbName: String, details: DatabaseConnectionDetail) {

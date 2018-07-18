@@ -2,6 +2,7 @@ package org.s2progger.dataflow.dialects
 
 import java.sql.Types
 
+/* https://docs.oracle.com/cd/B28359_01/java.111/b31226/datamap.htm */
 class OracleDialect : GenericDialect() {
     override fun typeToTypeName(type: Int): String {
         return when (type) {
