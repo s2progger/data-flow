@@ -1,2 +1,3 @@
-settings.json
-known-databases.json
+*.*
+!known-databases.example.json
+!settings.example.json
