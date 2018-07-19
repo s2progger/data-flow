@@ -14,17 +14,17 @@ import org.s2progger.dataflow.dialects.MsSqlDialect
 import org.s2progger.dataflow.dialects.OracleDialect
 import kotlin.math.roundToInt
 
-class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
+class DatabaseCopy(private val config: PipelineConfiguration) {
     private val logger = KotlinLogging.logger {}
     private val dialect: DatabaseDialect
 
     init {
-        if (exportConfig.outputFolder != null) {
-            File(exportConfig.outputFolder).mkdirs()
+        if (config.target.outputFolder != null) {
+            File(config.target.outputFolder).mkdirs()
         }
 
-        if (exportConfig.dialect != null) {
-            when (exportConfig.dialect.toUpperCase()) {
+        if (config.target.dialect != null) {
+            when (config.target.dialect.toUpperCase()) {
                 "ORACLE" -> dialect = OracleDialect()
                 "MSSQL" -> dialect = MsSqlDialect()
                 else -> dialect = GenericDialect()
@@ -34,69 +34,69 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
         }
     }
 
-    fun copyDatabase(dbName: String, details: DatabaseConnectionDetail) {
-        val exportUrl = when (exportConfig.outputFolder.isNullOrEmpty()) {
-            true -> "${exportConfig.urlProtocol}${exportConfig.urlOptions}"
-            false -> "${exportConfig.urlProtocol}${exportConfig.outputFolder}${dbName.toLowerCase().replace(" ", "_")}-import${exportConfig.urlOptions}"
+    fun copyDatabase() {
+        val exportUrl = when (config.target.outputFolder.isNullOrEmpty()) {
+            true -> "${config.target.urlProtocol}${config.target.urlOptions}"
+            false -> "${config.target.urlProtocol}${config.target.outputFolder}${config.source.application.toLowerCase().replace(" ", "_")}-import${config.target.urlOptions}"
         }
 
-        val importConnectionConfig = HikariConfig()
+        val sourceConnnectionConfig = HikariConfig()
 
-        importConnectionConfig.poolName = "Import connection pool"
-        importConnectionConfig.driverClassName = details.driver
-        importConnectionConfig.jdbcUrl = details.url
-        importConnectionConfig.username = details.username
-        importConnectionConfig.password = details.password
+        sourceConnnectionConfig.poolName = "Source system connection pool"
+        sourceConnnectionConfig.driverClassName = config.source.rdms.driver
+        sourceConnnectionConfig.jdbcUrl = config.source.rdms.url
+        sourceConnnectionConfig.username = config.source.rdms.username
+        sourceConnnectionConfig.password = config.source.rdms.password
 
-        if (details.testQuery != null)
-            importConnectionConfig.connectionTestQuery = details.testQuery
+        if (config.source.rdms.testQuery != null)
+            sourceConnnectionConfig.connectionTestQuery = config.source.rdms.testQuery
 
-        if (details.dataSourceProperties != null) {
-            details.dataSourceProperties.forEach {
-                importConnectionConfig.addDataSourceProperty(it.property, it.value)
+        if (config.source.rdms.dataSourceProperties != null) {
+            config.source.rdms.dataSourceProperties.forEach {
+                sourceConnnectionConfig.addDataSourceProperty(it.property, it.value)
             }
         }
 
-        val exportConnectionConfig = HikariConfig()
+        val targetConnectionConfig = HikariConfig()
 
-        exportConnectionConfig.poolName = "Export connection pool"
-        exportConnectionConfig.driverClassName = exportConfig.driver
-        exportConnectionConfig.jdbcUrl = exportUrl
-        exportConnectionConfig.username = exportConfig.username
-        exportConnectionConfig.password = exportConfig.password
+        targetConnectionConfig.poolName = "Target database connection pool"
+        targetConnectionConfig.driverClassName = config.target.driver
+        targetConnectionConfig.jdbcUrl = exportUrl
+        targetConnectionConfig.username = config.target.username
+        targetConnectionConfig.password = config.target.password
 
-        if (exportConfig.testQuery != null)
-            exportConnectionConfig.connectionTestQuery = exportConfig.testQuery
+        if (config.target.testQuery != null)
+            targetConnectionConfig.connectionTestQuery = config.target.testQuery
 
-        if (exportConfig.dataSourceProperties != null) {
-            exportConfig.dataSourceProperties.forEach {
-                exportConnectionConfig.addDataSourceProperty(it.property, it.value)
+        if (config.target.dataSourceProperties != null) {
+            config.target.dataSourceProperties.forEach {
+                targetConnectionConfig.addDataSourceProperty(it.property, it.value)
             }
         }
 
-        val importDataSource = HikariDataSource(importConnectionConfig)
-        val exportDataSource = HikariDataSource(exportConnectionConfig)
+        val sourceDataSource = HikariDataSource(sourceConnnectionConfig)
+        val targetDataSource = HikariDataSource(targetConnectionConfig)
 
-        if (details.sqlSetupCommands != null) {
-            importDataSource.connection.use { connection ->
-                connection.createStatement().use {statement ->
-                    statement.execute(details.sqlSetupCommands)
-                }
-            }
-        }
-
-        if (exportConfig.sqlSetupCommands != null) {
-            exportDataSource.connection.use { connection ->
+        if (config.target.sqlSetupCommand != null) {
+            targetDataSource.connection.use { connection ->
                 connection.createStatement().use { statement ->
-                    statement.execute(exportConfig.sqlSetupCommands)
+                    statement.execute(config.target.sqlSetupCommand)
                 }
             }
         }
 
-        importApplication(importDataSource, exportDataSource, details.imports)
+        if (config.source.rdms.sqlSetupCommand != null) {
+            sourceDataSource.connection.use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.execute(config.source.rdms.sqlSetupCommand)
+                }
+            }
+        }
 
-        if (details.postScripts != null) {
-            runPostScripts(details.postScripts, exportDataSource)
+        importApplication(sourceDataSource, targetDataSource, config.source.rdms.imports)
+
+        if (config.source.rdms.targetPostScripts != null) {
+            runPostScripts(config.source.rdms.targetPostScripts, targetDataSource)
         }
 
     }
@@ -118,14 +118,14 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
         for (import in importList) {
             logger.info("Importing ${import.table}...")
 
-            if (import.preTasks != null)
-                runDbTasks(import.table, import.preTasks, exportDataSource)
+            if (import.targetPreTasks != null)
+                runDbTasks(import.table, import.targetPreTasks, exportDataSource)
 
             prepareImportTable(import.table, import.target ?: import.table, importDataSource, exportDataSource)
             importTable(import, importDataSource, exportDataSource)
 
-            if (import.postTasks != null)
-                runDbTasks(import.table, import.postTasks, exportDataSource)
+            if (import.targetPostTasks != null)
+                runDbTasks(import.table, import.targetPostTasks, exportDataSource)
         }
     }
 
@@ -186,7 +186,7 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
     }
 
     @Throws(Exception::class)
-    private fun getTableCreateScript(sourceTable: String, tartgetTable: String, dataSource: HikariDataSource) : String {
+    private fun getTableCreateScript(sourceTable: String, targetTable: String, dataSource: HikariDataSource) : String {
         val script = StringBuffer()
 
         dataSource.connection.use { connection ->
@@ -195,7 +195,7 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
                 val rs = statement.executeQuery(tableDetectSql)
                 val meta = rs.metaData
 
-                script.append("CREATE TABLE $tartgetTable ( ")
+                script.append("CREATE TABLE $targetTable ( ")
 
                 var first = true
 
@@ -237,7 +237,7 @@ class DatabaseCopy(private val exportConfig: ExportDbConfiguration) {
 
     @Throws(Exception::class)
     private fun importTable(import: DatabaseImport, importDataSource: HikariDataSource, exportDataSource: HikariDataSource) {
-        val insertBatchSize = exportConfig.exportBatchSize ?: 10000
+        val insertBatchSize = config.target.exportBatchSize ?: 10000
         val columnDetectSql = "SELECT * FROM ${import.table} WHERE 1 = 2"
         val selectSql = import.query ?: "SELECT * FROM ${import.table}"
         val insertSql = StringBuffer()

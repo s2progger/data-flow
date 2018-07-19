@@ -1,6 +1,11 @@
 package org.s2progger.dataflow.config
 
-data class ExportDbConfiguration (
+data class PipelineConfiguration (
+        val source: PipelineSourceConfig,
+        val target: PipelineTargetConfig
+)
+
+data class PipelineTargetConfig (
         val exportBatchSize: Int?,
         val driver: String,
         val outputFolder: String?,
@@ -9,18 +14,14 @@ data class ExportDbConfiguration (
         val testQuery: String?,
         val dialect: String?,
         val dataSourceProperties: List<DataSourceProperty>?,
-        val sqlSetupCommands: String?,
+        val sqlSetupCommand: String?,
         val username: String?,
         val password: String?
 )
 
-data class ImportConfig (
-        val knownDatabases: List<KnownDatabase>
-)
-
-data class KnownDatabase (
+data class PipelineSourceConfig (
         val application: String,
-        val connectionDetails: DatabaseConnectionDetail
+        val rdms: DatabaseConnectionDetail
 )
 
 data class DatabaseConnectionDetail (
@@ -29,11 +30,11 @@ data class DatabaseConnectionDetail (
         val username: String?,
         val password: String?,
         val schema: String?,
-        val sqlSetupCommands: String?,
+        val sqlSetupCommand: String?,
         val dataSourceProperties: List<DataSourceProperty>?,
         val testQuery: String?,
         val imports: List<DatabaseImport>,
-        val postScripts: List<PostRunScript>?
+        val targetPostScripts: List<PostRunScript>?
 )
 
 data class DatabaseImport (
@@ -41,8 +42,8 @@ data class DatabaseImport (
         val target: String?,
         val fetchSize: Int?,
         val query: String?,
-        val preTasks: List<DbTask>?,
-        val postTasks: List<DbTask>?
+        val targetPreTasks: List<DbTask>?,
+        val targetPostTasks: List<DbTask>?
 )
 
 data class DbTask (
