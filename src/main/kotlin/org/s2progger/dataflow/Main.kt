@@ -10,7 +10,7 @@ import org.s2progger.dataflow.config.PipelineConfiguration
 import java.io.FileReader
 
 class Main : CliktCommand(name = "data-flow", help = "Export database tables") {
-    private val config: String by option(help = "Specify a path to the config file you want this to run with - default is to look for pipeline-config.json in the same directory the application in run from", envvar = "DF_CONFIG_FILE").default("pipeline-config.json")
+    private val config: String by option(help = "Specify a path to the config file - default is to look for pipeline-config.json in the same directory the application in run from", envvar = "DF_CONFIG_FILE").default("pipeline-config.json")
 
     private val logger = KotlinLogging.logger {}
 
