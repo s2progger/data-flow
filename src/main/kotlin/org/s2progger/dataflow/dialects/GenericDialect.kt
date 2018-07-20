@@ -31,8 +31,8 @@ open class GenericDialect : DatabaseDialect {
             Types.TINYINT   -> "TINYINT"
             Types.VARBINARY -> "VARBINARY"
             Types.VARCHAR   -> "VARCHAR"
-            Types.LONGVARBINARY -> "VARBINARY(MAX)"
-            Types.LONGVARCHAR   -> "VARCHAR(MAX)"
+            Types.LONGVARBINARY -> "BLOB"
+            Types.LONGVARCHAR   -> "CLOB"
             else            -> "BLOB"
         }
     }
@@ -70,7 +70,7 @@ open class GenericDialect : DatabaseDialect {
     }
     
     override fun isSizable(type: String): Boolean {
-        val sizableTypes = arrayListOf("VARCHAR2", "VARCHAR", "NUMERIC", "NUMBER", "DECIMAL", "CHAR", "NCHAR", "NVARCHAR", "NVARCHAR2")
+        val sizableTypes = arrayListOf("VARCHAR2", "VARCHAR", "NUMERIC", "NUMBER", "DECIMAL", "CHAR", "NCHAR", "NVARCHAR", "NVARCHAR2", "VARBINARY", "BINARY")
 
         return sizableTypes.contains(type)
     }

@@ -21,7 +21,7 @@ repositories {
 mainClassName = "org.s2progger.dataflow.MainKt"
 
 group = "org.s2progger"
-version = "2.0"
+version = "2.1"
 
 sourceCompatibility = 1.8
 
@@ -56,14 +56,14 @@ jar {
     }
 }
 
-task copyConfig(type: Copy, group: "build", description: "Copys the JSON config files to the build directory") {
+task copyConfig(type: Copy, group: "build", description: "Copies the JSON config files to the build directory") {
     from "config"
-    include "*.example.*"
+    include "*.sample.*"
 
     into "${buildDir}/config"
 
     rename { filename ->
-        filename.replace ".example", ""
+        filename.replace ".sample", ""
     }
 }
 
