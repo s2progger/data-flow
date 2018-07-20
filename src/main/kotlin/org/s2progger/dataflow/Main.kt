@@ -6,14 +6,11 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.salomonbrys.kotson.*
 import com.google.gson.Gson
 import mu.KotlinLogging
-import org.s2progger.dataflow.config.ExportDbConfiguration
-import org.s2progger.dataflow.config.ImportConfig
+import org.s2progger.dataflow.config.PipelineConfiguration
 import java.io.FileReader
 
 class Main : CliktCommand(name = "data-flow", help = "Export database tables") {
-    private val settings: String by option(help = "Specify a path to the settings.json file - default is to look in the same directory the application in run from", envvar = "DF_SETTINGS_FILE").default("settings.json")
-    private val databases: String by option(help = "Specify a path to the known-databases.json file - default is to look in the same directory the application in run from", envvar = "DF_DATABASES_FILE").default("known-databases.json")
-    private val application: String? by option(help = "The application from known-databases.json to select - if omitted a choice is given", envvar = "DF_SELECTED_APP")
+    private val config: String by option(help = "Specify a path to the config file - default is to look for pipeline-config.json in the same directory the application in run from", envvar = "DF_CONFIG_FILE").default("pipeline-config.json")
 
     private val logger = KotlinLogging.logger {}
 
@@ -21,39 +18,9 @@ class Main : CliktCommand(name = "data-flow", help = "Export database tables") {
         val gson = Gson()
 
         try {
-            val exportDbConfig = gson.fromJson<ExportDbConfiguration>(FileReader(settings))
-            val importConfig = gson.fromJson<ImportConfig>(FileReader(databases))
+            val pipelineConfig = gson.fromJson<PipelineConfiguration>(FileReader(config))
 
-            val dbCopyUtil = DatabaseCopy(exportDbConfig)
-
-            var selection = application
-
-            if (selection == null) {
-                println("Known databases")
-                println()
-
-                importConfig.knownDatabases.forEachIndexed { index, value ->
-                    println("[$index] - ${value.application}")
-                }
-
-                println()
-                println("Enter a database # to copy: ")
-
-                selection = readLine()
-            }
-
-
-            if (selection == null) {
-                throw Throwable("No database selection made")
-            }
-
-            importConfig.knownDatabases.forEachIndexed { index, value ->
-                if (selection == value.application || selection.toIntOrNull() == index) {
-                    logger.info("Copying ${value.application}")
-
-                    dbCopyUtil.copyDatabase(value.application, value.connectionDetails)
-                }
-            }
+            DatabaseCopy(pipelineConfig).copyDatabase()
 
             logger.info("All done")
         } catch (e: Throwable){
