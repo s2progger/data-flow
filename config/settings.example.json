@@ -1,7 +1,0 @@
-{
-  "driver": "org.h2.Driver",
-  "outputFolder": "./db-output/",
-  "urlProtocol": "jdbc:h2:",
-  "urlOptions": ";AUTO_SERVER=TRUE;LOG=0;CACHE_SIZE=65536;LOCK_MODE=0;UNDO_LOG=0",
-  "exportBatchSize": 20000
-}

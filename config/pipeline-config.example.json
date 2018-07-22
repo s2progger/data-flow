@@ -1,0 +1,34 @@
+{
+  "source": {
+    "application": "Sample DB",
+    "rdms": {
+      "driver": "oracle.jdbc.OracleDriver",
+      "url": "jdbc:oracle:thin:@[host]:[port]:[sid]",
+      "username": "",
+      "password": "",
+      "dataSourceProperties": [
+        { "property": "oracle.net.CONNECT_TIMEOUT", "value": "1860000" },
+        { "property": "oracle.jdbc.ReadTimeout", "value": "1860000" }
+      ],
+      "testQuery": "SELECT 1 FROM DUAL",
+      "imports": [
+        { "table": "EXAMPLE_TABLE_1", "fetchSize": 20000 },
+        { "table": "EXAMPLE_TABLE_2", "query": "SELECT * FROM EXAMPLE_TABLE_2 WHERE year >= 2014" },
+        { "table": "EXAMPLE_TABLE_3", "target": "T_EXAMPLE_TABLE_3", "targetPreTasks": [
+            { "sql": "IF EXISTS (SELECT * FROM sys.tables WHERE name = 'T_EXAMPLE_TABLE_3') DELETE FROM T_EXAMPLE_TABLE_3" }
+          ]
+        }
+      ],
+      "targetPostScripts": [
+        { "label": "Create Index", "sql": "CREATE INDEX et1_idx_1 ON EXAMPLE_TABLE_1 (id)" }
+      ]
+    }
+  },
+  "target": {
+    "driver": "org.h2.Driver",
+    "outputFolder": "./db-output/",
+    "urlProtocol": "jdbc:h2:",
+    "urlOptions": ";AUTO_SERVER=TRUE;LOG=0;CACHE_SIZE=65536;LOCK_MODE=0;UNDO_LOG=0",
+    "exportBatchSize": 20000
+  }
+}

@@ -58,12 +58,12 @@ jar {
 
 task copyConfig(type: Copy, group: "build", description: "Copies the JSON config files to the build directory") {
     from "config"
-    include "*.sample.*"
+    include "*.example.*"
 
     into "${buildDir}/config"
 
     rename { filename ->
-        filename.replace ".sample", ""
+        filename.replace ".example", ""
     }
 }
 
