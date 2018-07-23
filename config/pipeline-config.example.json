@@ -1,4 +1,7 @@
 {
+  "global": {
+    "pathSupplement": "./libs/"
+  },
   "source": {
     "application": "Sample DB",
     "rdms": {

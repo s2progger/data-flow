@@ -1,8 +1,13 @@
 package org.s2progger.dataflow.config
 
 data class PipelineConfiguration (
+        val global: PipelineGlobalConfig?,
         val source: PipelineSourceConfig,
         val target: PipelineTargetConfig
+)
+
+data class PipelineGlobalConfig (
+        val pathSupplement: String?
 )
 
 data class PipelineTargetConfig (
