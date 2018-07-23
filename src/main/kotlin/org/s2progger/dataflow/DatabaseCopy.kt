@@ -209,18 +209,18 @@ class DatabaseCopy(private val config: PipelineConfiguration) {
                     val name = meta.getColumnName(i)
                     val type = dialect.typeToTypeName(meta.getColumnType(i))
                     val size = meta.getPrecision(i)
-                    val precision = meta.getScale(i)
+                    val scale = meta.getScale(i)
 
                     val nullable = if (meta.isNullable(i) == ResultSetMetaData.columnNoNulls) "NOT NULL" else ""
 
-                    if (dialect.isSizable(type) && dialect.isNumeric(type) && precision >= 0) {
-                        script.append("$name $type ($size, $precision) $nullable")
-                    } else if(dialect.isSizable(type) && precision >= 0) {
-                        // If this is a sizable type and the size is 0, the JDBC driver probably isn't implemented correctly
-                        // so just the target column the max size (this will need to be reworked to be more DB agnostic)
-                        val colSize = if (size == 0) "MAX" else size.toString()
+                    if (dialect.isSizable(type) && dialect.isNumeric(type)) {
+                        val targetSize = if (size == 0) dialect.defaultMaxNumberSize() else size
 
-                        script.append("$name $type ($colSize) $nullable")
+                        script.append("$name $type ($targetSize, $scale) $nullable")
+                    } else if(dialect.isSizable(type)) {
+                        val targetSize = if (size == 0) dialect.defaultMaxDataSize() else size
+
+                        script.append("$name $type ($targetSize) $nullable")
                     } else {
                         script.append("$name $type $nullable")
                     }

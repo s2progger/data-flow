@@ -80,4 +80,13 @@ open class GenericDialect : DatabaseDialect {
 
         return numericTypes.contains(type)
     }
+
+    override fun defaultMaxNumberSize(): String {
+        return "19"
+    }
+
+    override fun defaultMaxDataSize(): String {
+        return "4000"
+    }
+
 }
