@@ -214,11 +214,11 @@ class DatabaseCopy(private val config: PipelineConfiguration) {
                     val nullable = if (meta.isNullable(i) == ResultSetMetaData.columnNoNulls) "NOT NULL" else ""
 
                     if (dialect.isSizable(type) && dialect.isNumeric(type)) {
-                        val targetSize = if (size == 0) dialect.defaultMaxNumberSize() else size
+                        val targetSize = if (size == 0) dialect.defaultMaxNumberSize() else size.toString()
 
                         script.append("$name $type ($targetSize, $scale) $nullable")
                     } else if(dialect.isSizable(type)) {
-                        val targetSize = if (size == 0) dialect.defaultMaxDataSize() else size
+                        val targetSize = if (size == 0) dialect.defaultMaxDataSize() else size.toString()
 
                         script.append("$name $type ($targetSize) $nullable")
                     } else {
