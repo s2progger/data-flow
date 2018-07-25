@@ -22,14 +22,10 @@ class DatabaseCopy(private val config: PipelineConfiguration, private val logger
             File(config.target.outputFolder).mkdirs()
         }
 
-        if (config.target.dialect != null) {
-            when (config.target.dialect.toUpperCase()) {
-                "ORACLE" -> dialect = OracleDialect()
-                "MSSQL" -> dialect = MsSqlDialect()
-                else -> dialect = GenericDialect()
-            }
-        } else {
-            dialect = GenericDialect()
+        dialect = when (config.target.dialect?.toUpperCase()) {
+            "ORACLE" -> OracleDialect()
+            "MSSQL" -> MsSqlDialect()
+            else -> GenericDialect()
         }
     }
 
@@ -159,7 +155,7 @@ class DatabaseCopy(private val config: PipelineConfiguration, private val logger
                     }
                 }
             } catch (e: Exception) {
-                logger.error("$table - TASK ERROR - Task exception: ${e.toString()}")
+                logger.error("$table - TASK ERROR - Task exception: $e")
             }
         }
     }

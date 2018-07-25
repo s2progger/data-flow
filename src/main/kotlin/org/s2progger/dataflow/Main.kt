@@ -16,10 +16,10 @@ class Main : CliktCommand(name = "data-flow", help = "Export database tables") {
     override fun run() {
         val gson = Gson()
         val pipelineConfig = gson.fromJson<PipelineConfiguration>(FileReader(config))
-        val logger = PipelineLogging.createLogger(pipelineConfig.source.application, pipelineConfig.global!!.logging)
+        val logger = PipelineLogging.createLogger(pipelineConfig.source.application, pipelineConfig.global?.logging)
 
         try {
-            if (pipelineConfig.global.pathSupplement != null) {
+            if (pipelineConfig.global?.pathSupplement != null) {
                 PathHelper.appendToPath(pipelineConfig.global.pathSupplement)
             }
 
