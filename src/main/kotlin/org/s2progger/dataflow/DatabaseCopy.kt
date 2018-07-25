@@ -2,7 +2,6 @@ package org.s2progger.dataflow
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import mu.KotlinLogging
 import org.s2progger.dataflow.config.*
 import java.io.File
 import java.sql.*
@@ -12,10 +11,10 @@ import org.s2progger.dataflow.dialects.DatabaseDialect
 import org.s2progger.dataflow.dialects.GenericDialect
 import org.s2progger.dataflow.dialects.MsSqlDialect
 import org.s2progger.dataflow.dialects.OracleDialect
+import org.slf4j.Logger
 import kotlin.math.roundToInt
 
-class DatabaseCopy(private val config: PipelineConfiguration) {
-    private val logger = KotlinLogging.logger {}
+class DatabaseCopy(private val config: PipelineConfiguration, private val logger: Logger) {
     private val dialect: DatabaseDialect
 
     init {
@@ -40,20 +39,20 @@ class DatabaseCopy(private val config: PipelineConfiguration) {
             false -> "${config.target.urlProtocol}${config.target.outputFolder}${config.source.application.toLowerCase().replace(" ", "_")}-import${config.target.urlOptions}"
         }
 
-        val sourceConnnectionConfig = HikariConfig()
+        val sourceConnectionConfig = HikariConfig()
 
-        sourceConnnectionConfig.poolName = "Source system connection pool"
-        sourceConnnectionConfig.driverClassName = config.source.rdms.driver
-        sourceConnnectionConfig.jdbcUrl = config.source.rdms.url
-        sourceConnnectionConfig.username = config.source.rdms.username
-        sourceConnnectionConfig.password = config.source.rdms.password
+        sourceConnectionConfig.poolName = "Source system connection pool"
+        sourceConnectionConfig.driverClassName = config.source.rdms.driver
+        sourceConnectionConfig.jdbcUrl = config.source.rdms.url
+        sourceConnectionConfig.username = config.source.rdms.username
+        sourceConnectionConfig.password = config.source.rdms.password
 
         if (config.source.rdms.testQuery != null)
-            sourceConnnectionConfig.connectionTestQuery = config.source.rdms.testQuery
+            sourceConnectionConfig.connectionTestQuery = config.source.rdms.testQuery
 
         if (config.source.rdms.dataSourceProperties != null) {
             config.source.rdms.dataSourceProperties.forEach {
-                sourceConnnectionConfig.addDataSourceProperty(it.property, it.value)
+                sourceConnectionConfig.addDataSourceProperty(it.property, it.value)
             }
         }
 
@@ -74,7 +73,7 @@ class DatabaseCopy(private val config: PipelineConfiguration) {
             }
         }
 
-        val sourceDataSource = HikariDataSource(sourceConnnectionConfig)
+        val sourceDataSource = HikariDataSource(sourceConnectionConfig)
         val targetDataSource = HikariDataSource(targetConnectionConfig)
 
         if (config.target.sqlSetupCommand != null) {
@@ -92,6 +91,11 @@ class DatabaseCopy(private val config: PipelineConfiguration) {
                 }
             }
         }
+
+        val targetMeta = getDbProductAndVersion(targetDataSource)
+
+        logger.info("Target database product: ${targetMeta.productName}")
+        logger.info("Target database version: ${targetMeta.version}")
 
         importApplication(sourceDataSource, targetDataSource, config.source.rdms.imports)
 
@@ -112,11 +116,11 @@ class DatabaseCopy(private val config: PipelineConfiguration) {
     private fun importApplication(importDataSource: HikariDataSource, exportDataSource: HikariDataSource, importList: List<DatabaseImport>) {
         val importMeta = getDbProductAndVersion(importDataSource)
 
-        logger.info("Database product: ${importMeta.productName}")
-        logger.info("Database version: ${importMeta.version}")
+        logger.info("Source database product: ${importMeta.productName}")
+        logger.info("Source database version: ${importMeta.version}")
 
         for (import in importList) {
-            logger.info("Importing ${import.table}...")
+            logger.info(import.table)
 
             if (import.targetPreTasks != null)
                 runDbTasks(import.table, import.targetPreTasks, exportDataSource)
@@ -145,7 +149,7 @@ class DatabaseCopy(private val config: PipelineConfiguration) {
 
     @Throws(Exception::class)
     private fun runDbTasks(table: String, tasks: List<DbTask>, dataSource: HikariDataSource) {
-        logger.info("Running ${tasks.count()} task(s) for $table")
+        logger.info("$table - TASK - Executing ${tasks.count()} task(s)")
 
         tasks.forEach { task ->
             try {
@@ -155,7 +159,7 @@ class DatabaseCopy(private val config: PipelineConfiguration) {
                     }
                 }
             } catch (e: Exception) {
-                logger.error("Task exception: ${e.toString()}")
+                logger.error("$table - TASK ERROR - Task exception: ${e.toString()}")
             }
         }
     }
@@ -170,7 +174,7 @@ class DatabaseCopy(private val config: PipelineConfiguration) {
 
                     statement.executeQuery(tableDetectSql)
 
-                    logger.info("Target table [$targetTable] already exists and will be used")
+                    logger.info("$sourceTable - TARGET EXISTS - Target already as $targetTable")
                 }
             }
         } catch (e: Exception) {
@@ -180,6 +184,8 @@ class DatabaseCopy(private val config: PipelineConfiguration) {
             exportDataSource.connection.use { connection ->
                 connection.createStatement().use { statement ->
                     statement.execute(script)
+
+                    logger.info("$sourceTable - TARGET CREATED - Target created as $targetTable")
                 }
             }
         }
@@ -238,6 +244,7 @@ class DatabaseCopy(private val config: PipelineConfiguration) {
     @Throws(Exception::class)
     private fun importTable(import: DatabaseImport, importDataSource: HikariDataSource, exportDataSource: HikariDataSource) {
         val insertBatchSize = config.target.exportBatchSize ?: 10000
+        val logBatchSize = config.global?.logging?.logBatchSize ?: insertBatchSize
         val columnDetectSql = "SELECT * FROM ${import.table} WHERE 1 = 2"
         val selectSql = import.query ?: "SELECT * FROM ${import.table}"
         val insertSql = StringBuffer()
@@ -264,22 +271,20 @@ class DatabaseCopy(private val config: PipelineConfiguration) {
                 if (import.fetchSize != null)
                     importStatement.fetchSize = import.fetchSize
 
-                logger.info("Running select from ${import.table}")
+                logger.info("${import.table} - SELECT - Executing select statement")
 
                 val rs = importStatement.executeQuery(selectSql)
 
-                logger.info("Results from ${import.table} received, copying to target...")
+                logger.info("${import.table} - RECEIVED - Result set received - copying to target")
 
                 exportDataSource.connection.use { exportConnection ->
                     exportConnection.autoCommit = false
 
                     exportConnection.prepareStatement(insertSql.toString()).use { exportStatement ->
                         var rowCount = 0
-                        val fullTimer= StopWatch()
-                        val batchTimer = StopWatch()
+                        val timer = StopWatch()
 
-                        fullTimer.start()
-                        batchTimer.start()
+                        timer.start()
 
                         while (rs.next()) {
                             rowCount++
@@ -295,28 +300,24 @@ class DatabaseCopy(private val config: PipelineConfiguration) {
                                 exportStatement.clearParameters()
 
                                 exportConnection.commit()
+                            }
 
-                                batchTimer.stop()
+                            if (rowCount % logBatchSize == 0) {
+                                val speed: Double = rowCount.toDouble() / (timer.time.toDouble() / 1000.toDouble())
 
-                                val batchSpeed: Double = insertBatchSize.toDouble() / (batchTimer.time.toDouble() / 1000.toDouble())
-                                val totalSpeed: Double = rowCount.toDouble() / (fullTimer.time.toDouble() / 1000.toDouble())
-
-                                logger.info("Imported ${NumberFormat.getInstance().format(rowCount)} record(s) from ${import.table} so far (batch avg ${batchSpeed.roundToInt()} row/s : rolling avg ${totalSpeed.roundToInt()} rows/s)")
-
-                                batchTimer.reset()
-                                batchTimer.start()
+                                logger.info("${import.table} - COPIED - ${NumberFormat.getInstance().format(rowCount)} rows(s) copied (Avg speed: ${speed.roundToInt()} rows/s)")
                             }
                         }
 
                         exportStatement.executeBatch()
                         exportConnection.commit()
 
-                        batchTimer.stop()
-                        fullTimer.stop()
+                        timer.stop()
                         rs.close()
 
-                        val speed: Double = rowCount.toDouble() / (fullTimer.time.toDouble() / 1000.toDouble())
-                        logger.info("Processed ${NumberFormat.getInstance().format(rowCount)} record(s) from ${import.table} (avg ${speed.roundToInt()} row/s)")
+                        val speed: Double = rowCount.toDouble() / (timer.time.toDouble() / 1000.toDouble())
+
+                        logger.info("${import.table} - COMPLETED - ${NumberFormat.getInstance().format(rowCount)} rows(s) copied (Avg speed: ${speed.roundToInt()} rows/s)")
                     }
                 }
             }

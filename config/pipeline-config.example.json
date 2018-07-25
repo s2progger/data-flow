@@ -1,6 +1,18 @@
 {
   "global": {
-    "pathSupplement": "./libs/"
+    "pathSupplement": "./libs/",
+    "logging": {
+      "level": "DEBUG",
+      "logBatchSize": 50000,
+      "console": {
+        "logPattern": "%msg%n"
+      },
+      "file": {
+        "fileName": "logs/pipeline.%d{yyyy-MM-dd-HH-mm-ss}.log",
+        "immediateFlush": false,
+        "logPattern": "%d{HH:mm:ss.SSS} [%thread] %-5level - %msg%n"
+      }
+    }
   },
   "source": {
     "application": "Sample DB",
@@ -9,6 +21,7 @@
       "url": "jdbc:oracle:thin:@[host]:[port]:[sid]",
       "username": "",
       "password": "",
+      "sqlSetupCommand": "ALTER SESSION ... --perhaps change schemas in Oracle?",
       "dataSourceProperties": [
         { "property": "oracle.net.CONNECT_TIMEOUT", "value": "1860000" },
         { "property": "oracle.jdbc.ReadTimeout", "value": "1860000" }

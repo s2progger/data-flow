@@ -21,7 +21,7 @@ repositories {
 mainClassName = "org.s2progger.dataflow.MainKt"
 
 group = "org.s2progger"
-version = "2.1"
+version = "2.2"
 
 sourceCompatibility = 1.8
 
@@ -29,7 +29,6 @@ dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
 
     compile "com.github.ajalt:clikt:1.3.0"
-    compile "io.github.microutils:kotlin-logging:1.5.4"
     compile "ch.qos.logback:logback-classic:1.2.3"
     compile "com.github.salomonbrys.kotson:kotson:2.5.0"
     compile "org.apache.commons:commons-lang3:3.7"

@@ -7,7 +7,23 @@ data class PipelineConfiguration (
 )
 
 data class PipelineGlobalConfig (
-        val pathSupplement: String?
+        val pathSupplement: String?,
+        val logging: PipelineLoggingConfig?
+)
+
+data class PipelineLoggingConfig (
+        val level: String,
+        val logBatchSize: Int?,
+        val console: PipelineConsoleLoggingConfig?,
+        val file: PipelineFileLoggingConfig?
+)
+
+data class PipelineConsoleLoggingConfig (
+        val logPattern: String
+)
+
+data class PipelineFileLoggingConfig (
+        val logPattern: String
 )
 
 data class PipelineTargetConfig (
