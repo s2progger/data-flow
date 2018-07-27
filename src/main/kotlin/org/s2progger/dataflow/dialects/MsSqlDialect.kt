@@ -35,4 +35,12 @@ class MsSqlDialect : GenericDialect() {
             else            -> "BLOB"
         }
     }
+
+    override fun defaultMaxNumberSize(): String {
+        return "38"
+    }
+
+    override fun defaultMaxDataSize(): String {
+        return "MAX"
+    }
 }
