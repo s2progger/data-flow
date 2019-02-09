@@ -5,6 +5,27 @@ import java.sql.ResultSet
 import java.sql.Types
 
 open class GenericDialect : DatabaseDialect {
+    override fun createColumnTypeDefinition(type: Int, size: Int, scale: Int): String {
+        val definition: String
+        val typeName = typeToTypeName(type)
+
+        definition = if (isSizable(typeName) && isNumeric(typeName)) {
+            if (size == 0) {
+                "$typeName (${defaultMaxNumberSize()})"
+            } else {
+                "$typeName ($size, $scale)"
+            }
+        } else if(isSizable(typeName)) {
+            val targetSize = if (size == 0) defaultMaxDataSize() else size.toString()
+
+            "$typeName ($targetSize)"
+        } else {
+            typeName
+        }
+
+        return definition
+    }
+
     override fun typeToTypeName(type: Int): String {
         return when (type) {
             Types.ARRAY     -> "ARRAY"
