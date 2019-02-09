@@ -216,8 +216,8 @@ class DatabaseCopy(private val config: PipelineConfiguration, private val logger
                     val nullable = if (meta.isNullable(i) == ResultSetMetaData.columnNoNulls) "NOT NULL" else ""
 
                     if (dialect.isSizable(type) && dialect.isNumeric(type)) {
-                        if (size == 0)
-                            script.append("$name $type (${dialect.defaultMaxNumberSize()}) $nullable")
+                        if (size == 0 || scale < 0)
+                            script.append("$name $type ${dialect.defaultMaxNumberSize()} $nullable")
                         else
                             script.append("$name $type ($size, $scale) $nullable")
                     } else if(dialect.isSizable(type)) {
