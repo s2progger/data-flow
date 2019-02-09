@@ -10,8 +10,8 @@ open class GenericDialect : DatabaseDialect {
         val typeName = typeToTypeName(type)
 
         definition = if (isSizable(typeName) && isNumeric(typeName)) {
-            if (size == 0) {
-                "$typeName (${defaultMaxNumberSize()})"
+            if (size == 0 || scale < 0) {
+                "$typeName ${defaultMaxNumberSize()}"
             } else {
                 "$typeName ($size, $scale)"
             }
