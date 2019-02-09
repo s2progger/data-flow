@@ -103,7 +103,7 @@ open class GenericDialect : DatabaseDialect {
     }
 
     override fun defaultMaxNumberSize(): String {
-        return "19"
+        return "(19)"
     }
 
     override fun defaultMaxDataSize(): String {

@@ -35,4 +35,8 @@ class OracleDialect : GenericDialect() {
             else            -> "BLOB"
         }
     }
+
+    override fun defaultMaxNumberSize(): String {
+        return ""
+    }
 }
