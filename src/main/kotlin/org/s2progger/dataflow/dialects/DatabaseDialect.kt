@@ -9,5 +9,6 @@ interface DatabaseDialect {
     fun isNumeric(type: String): Boolean
     fun defaultMaxNumberSize(): String
     fun defaultMaxDataSize(): String
+    fun createColumnTypeDefinition(type: Int, size: Int, scale: Int): String
     fun setPsValueFromRs(type: Int, resultSet: ResultSet, resultSetIndex: Int, statement: PreparedStatement, statementIndex: Int)
 }

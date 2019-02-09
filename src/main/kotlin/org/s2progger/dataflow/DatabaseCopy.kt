@@ -209,24 +209,10 @@ class DatabaseCopy(private val config: PipelineConfiguration, private val logger
                     }
 
                     val name = meta.getColumnName(i)
-                    val type = dialect.typeToTypeName(meta.getColumnType(i))
-                    val size = meta.getPrecision(i)
-                    val scale = meta.getScale(i)
-
+                    val type = dialect.createColumnTypeDefinition(meta.getColumnType(i), meta.getPrecision(i), meta.getScale(i))
                     val nullable = if (meta.isNullable(i) == ResultSetMetaData.columnNoNulls) "NOT NULL" else ""
 
-                    if (dialect.isSizable(type) && dialect.isNumeric(type)) {
-                        if (size == 0 || scale < 0)
-                            script.append("$name $type ${dialect.defaultMaxNumberSize()} $nullable")
-                        else
-                            script.append("$name $type ($size, $scale) $nullable")
-                    } else if(dialect.isSizable(type)) {
-                        val targetSize = if (size == 0) dialect.defaultMaxDataSize() else size.toString()
-
-                        script.append("$name $type ($targetSize) $nullable")
-                    } else {
-                        script.append("$name $type $nullable")
-                    }
+                    script.append("$name $type $nullable")
                 }
 
                 script.append(")")
