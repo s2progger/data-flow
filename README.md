@@ -1,4 +1,4 @@
-# Data Flow ETL
+# Kt Data Flow - A Kotlin Database Copying Utility
 
 A tool that can be used to move data from one datasource to another. Initially only JDBC compatible databases will be 
 supported, but eventually additional sources such as web services could be added.
